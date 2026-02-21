@@ -93,12 +93,12 @@
             <span>Clientes con Deuda</span>
         </a>
     </li>
-    <li>
+    <!--<li>
         <a href="registrar_abono.php" class="nav-link <?php echo $current_page == 'registrar_abono.php' ? 'active' : ''; ?>">
             <i class="fas fa-money-bill-wave"></i>
             <span>Registrar Abono</span>
         </a>
-    </li>
+    </li>-->
     
     <li class="nav-section">
         <span>Cuentas por Pagar</span>

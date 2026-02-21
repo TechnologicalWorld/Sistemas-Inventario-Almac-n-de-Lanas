@@ -464,9 +464,6 @@ while ($row = $result_productos->fetch_assoc()) {
                                             Mostrando <?php echo $result_categorias->num_rows; ?> categorías
                                         </div>
                                         <div class="text-end">
-                                            <button class="btn btn-sm btn-outline-secondary" onclick="exportarTabla()">
-                                                <i class="fas fa-file-excel me-1"></i>Exportar
-                                            </button>
                                             <button class="btn btn-sm btn-outline-secondary ms-1" onclick="imprimirTabla()">
                                                 <i class="fas fa-print me-1"></i>Imprimir
                                             </button>

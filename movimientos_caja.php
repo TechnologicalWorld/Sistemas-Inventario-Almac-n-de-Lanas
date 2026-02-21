@@ -751,6 +751,29 @@ $breadcrumb = [
     box-shadow: 0 0 0 0.2rem rgba(77, 171, 247, 0.25);
 }
 
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 99999;
+}
+
+.alert-flotante {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 99999;
+    min-width: 300px;
+    max-width: 500px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
 @media print {
     .btn, .modal, .card-header .btn-group { display: none; }
 }
@@ -789,30 +812,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Funciones de utilidad
 function mostrarLoading(mensaje = 'Cargando...') {
-    let loading = document.getElementById('loadingOverlay');
-    if (!loading) {
-        loading = document.createElement('div');
-        loading.id = 'loadingOverlay';
-        loading.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.7);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 99999;
-        `;
-        loading.innerHTML = `
-            <div class="text-center text-white">
-                <div class="spinner-border mb-3" style="width: 3rem; height: 3rem;"></div>
-                <h6>${mensaje}</h6>
-            </div>
-        `;
-        document.body.appendChild(loading);
-    }
+    // Eliminar loading anterior si existe
+    ocultarLoading();
+    
+    const loading = document.createElement('div');
+    loading.id = 'loadingOverlay';
+    loading.className = 'loading-overlay';
+    loading.innerHTML = `
+        <div class="text-center text-white">
+            <div class="spinner-border mb-3" style="width: 3rem; height: 3rem;"></div>
+            <h6>${mensaje}</h6>
+        </div>
+    `;
+    document.body.appendChild(loading);
 }
 
 function ocultarLoading() {
@@ -829,15 +841,6 @@ function mostrarMensaje(tipo, mensaje) {
     
     const alerta = document.createElement('div');
     alerta.className = `alert alert-${tipo} alert-dismissible fade show alert-flotante`;
-    alerta.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        z-index: 99999;
-        min-width: 300px;
-        max-width: 500px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    `;
     
     let icono = '';
     switch(tipo) {
@@ -876,21 +879,25 @@ function verDetalleMovimiento(movimientoId) {
             return response.text();
         })
         .then(html => {
-            ocultarLoading();
+            ocultarLoading(); // Ocultar loading inmediatamente
             document.getElementById('contenidoDetalleMovimiento').innerHTML = html;
             if (modalDetalle) {
-                modalDetalle.show();
+                setTimeout(() => {
+                    modalDetalle.show();
+                }, 100);
             } else {
                 // Fallback si bootstrap no está disponible
                 const modalEl = document.getElementById('modalDetalleMovimiento');
                 if (modalEl) {
                     const modal = new bootstrap.Modal(modalEl);
-                    modal.show();
+                    setTimeout(() => {
+                        modal.show();
+                    }, 100);
                 }
             }
         })
         .catch(error => {
-            ocultarLoading();
+            ocultarLoading(); // Ocultar loading en caso de error
             console.error('Error:', error);
             mostrarMensaje('danger', 'Error al cargar el detalle del movimiento: ' + error.message);
             document.getElementById('contenidoDetalleMovimiento').innerHTML = `
@@ -955,7 +962,7 @@ function editarGasto(gastoId) {
             return response.json();
         })
         .then(data => {
-            ocultarLoading();
+            ocultarLoading(); // Ocultar loading inmediatamente
             
             if (data.error) {
                 throw new Error(data.message || 'Error al cargar el gasto');
@@ -978,11 +985,13 @@ function editarGasto(gastoId) {
             }
             
             if (modalGasto) {
-                modalGasto.show();
+                setTimeout(() => {
+                    modalGasto.show();
+                }, 100);
             }
         })
         .catch(error => {
-            ocultarLoading();
+            ocultarLoading(); // Ocultar loading en caso de error
             console.error('Error:', error);
             mostrarMensaje('danger', error.message || 'Error al cargar los datos del gasto');
         });
@@ -992,7 +1001,6 @@ function initFormularioGasto() {
     const form = document.getElementById('formGasto');
     if (!form) return;
     
-    // Cambiar a envío tradicional en lugar de fetch
     form.onsubmit = function(e) {
         e.preventDefault();
         
@@ -1029,7 +1037,7 @@ function initFormularioGasto() {
         })
         .then(response => response.json())
         .then(data => {
-            ocultarLoading();
+            ocultarLoading(); // Ocultar loading inmediatamente
             
             if (data.success) {
                 mostrarMensaje('success', data.message);
@@ -1042,7 +1050,7 @@ function initFormularioGasto() {
             }
         })
         .catch(error => {
-            ocultarLoading();
+            ocultarLoading(); // Ocultar loading en caso de error
             console.error('Error:', error);
             mostrarMensaje('danger', 'Error de conexión al guardar el gasto');
         });
@@ -1115,7 +1123,7 @@ function exportarMovimientos() {
             </head>
             <body>
                 <div style="text-align: center;">
-                    <h1><?php echo EMPRESA_NOMBRE; ?></h1>
+                    <h1><?php echo EMPRESA_NOMBRE ?? 'TIENDA DE LANAS'; ?></h1>
                     <h2>Reporte de Movimientos de Caja</h2>
                     <p>
                         <strong>Fecha:</strong> ${fechaStr} ${horaStr}<br>

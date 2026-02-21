@@ -1,5 +1,4 @@
 <?php
-
 session_start();
 
 $titulo_pagina = "Inventario";
@@ -20,8 +19,6 @@ $filtro_stock = $_GET['stock'] ?? '';
 $filtro_busqueda = $_GET['busqueda'] ?? '';
 $orden = $_GET['orden'] ?? 'proveedor_codigo';
 $direccion = $_GET['dir'] ?? 'asc';
-$pagina = isset($_GET['pagina']) ? (int)$_GET['pagina'] : 1;
-$por_pagina = isset($_GET['por_pagina']) ? (int)$_GET['por_pagina'] : 50;
 
 $mensaje = '';
 $tipo_mensaje = '';
@@ -116,27 +113,7 @@ $orden_columnas = [
 $orden_columna = $orden_columnas[$orden] ?? 'pr.nombre, p.codigo';
 $orden_direccion = strtoupper($direccion) === 'DESC' ? 'DESC' : 'ASC';
 
-// Consulta para contar total
-$query_count = "SELECT COUNT(*) as total FROM productos p
-               JOIN proveedores pr ON p.proveedor_id = pr.id
-               JOIN categorias c ON p.categoria_id = c.id
-               LEFT JOIN inventario i ON p.id = i.producto_id
-               $where_clause";
-
-if ($params) {
-    $stmt_count = $conn->prepare($query_count);
-    $stmt_count->bind_param($types, ...$params);
-    $stmt_count->execute();
-    $result_count = $stmt_count->get_result();
-} else {
-    $result_count = $conn->query($query_count);
-}
-
-$total_registros = $result_count->fetch_assoc()['total'];
-$total_paginas = ceil($total_registros / $por_pagina);
-$offset = ($pagina - 1) * $por_pagina;
-
-// Consulta principal con paginación
+// Consulta principal SIN PAGINACIÓN
 $query_inventario = "SELECT p.id, p.codigo, p.nombre_color, 
                     pr.nombre as proveedor, pr.id as proveedor_id,
                     c.nombre as categoria, c.id as categoria_id,
@@ -154,21 +131,15 @@ $query_inventario = "SELECT p.id, p.codigo, p.nombre_color,
                     JOIN categorias c ON p.categoria_id = c.id
                     LEFT JOIN inventario i ON p.id = i.producto_id
                     $where_clause
-                    ORDER BY $orden_columna $orden_direccion
-                    LIMIT ? OFFSET ?";
+                    ORDER BY $orden_columna $orden_direccion";
 
-// Agregar parámetros de paginación
-$params_paginacion = array_merge($params, [$por_pagina, $offset]);
-$types_paginacion = $types . "ii";
-
-if ($params_paginacion) {
+if ($params) {
     $stmt = $conn->prepare($query_inventario);
-    $stmt->bind_param($types_paginacion, ...$params_paginacion);
+    $stmt->bind_param($types, ...$params);
     $stmt->execute();
     $result_inventario = $stmt->get_result();
 } else {
-    $query_simple = $query_inventario . " LIMIT $por_pagina OFFSET $offset";
-    $result_inventario = $conn->query($query_simple);
+    $result_inventario = $conn->query($query_inventario);
 }
 
 // Estadísticas completas
@@ -187,6 +158,8 @@ $query_stats = "SELECT
                 WHERE p.activo = 1";
 $result_stats = $conn->query($query_stats);
 $stats = $result_stats->fetch_assoc();
+
+$total_registros = $result_inventario->num_rows;
 ?>
 
 <?php if ($mensaje): ?>
@@ -326,9 +299,7 @@ $stats = $result_stats->fetch_assoc();
                         <button class="btn btn-outline-light btn-sm ms-1" onclick="exportarInventarioExcel()">
                             <i class="fas fa-file-excel me-1"></i>Excel
                         </button>
-                        <button class="btn btn-outline-light btn-sm ms-1" onclick="imprimirInventario()">
-                            <i class="fas fa-print me-1"></i>Imprimir
-                        </button>
+
                     </div>
                 </div>
             </div>
@@ -349,8 +320,6 @@ $stats = $result_stats->fetch_assoc();
                             <div class="collapse show" id="filtrosAvanzados">
                                 <div class="card-body">
                                     <form method="GET" action="" class="row g-2" id="formFiltros">
-                                        <input type="hidden" name="pagina" value="1">
-                                        
                                         <div class="col-lg-2 col-md-4">
                                             <label class="form-label small fw-bold">Proveedor</label>
                                             <select class="form-select form-select-sm" name="proveedor" onchange="this.form.submit()">
@@ -437,23 +406,6 @@ $stats = $result_stats->fetch_assoc();
                                                 <?php endif; ?>
                                             </div>
                                         </div>
-                                        
-                                        <div class="col-lg-4 col-md-8 mt-2">
-                                            <div class="d-flex align-items-center">
-                                                <label class="form-label small fw-bold me-2 mb-0">Mostrar:</label>
-                                                <select class="form-select form-select-sm w-auto" name="por_pagina" onchange="this.form.submit()">
-                                                    <option value="20" <?php echo ($por_pagina == 20) ? 'selected' : ''; ?>>20</option>
-                                                    <option value="50" <?php echo ($por_pagina == 50) ? 'selected' : ''; ?>>50</option>
-                                                    <option value="100" <?php echo ($por_pagina == 100) ? 'selected' : ''; ?>>100</option>
-                                                    <option value="200" <?php echo ($por_pagina == 200) ? 'selected' : ''; ?>>200</option>
-                                                </select>
-                                                <span class="ms-2 small text-muted">
-                                                    <?php echo number_format($offset + 1); ?> - 
-                                                    <?php echo number_format(min($offset + $por_pagina, $total_registros)); ?> 
-                                                    de <?php echo number_format($total_registros); ?>
-                                                </span>
-                                            </div>
-                                        </div>
                                     </form>
                                 </div>
                             </div>
@@ -482,9 +434,9 @@ $stats = $result_stats->fetch_assoc();
                 </div>
                 
                 <!-- Tabla de inventario -->
-                <div class="table-responsive">
+                <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
                     <table class="table table-hover table-striped table-bordered" id="tablaInventario">
-                        <thead class="table-dark">
+                        <thead class="table-dark" style="position: sticky; top: 0; z-index: 10;">
                             <tr>
                                 <th width="8%" class="text-center">
                                     <a href="<?php echo generarUrlOrden('codigo'); ?>" class="text-white text-decoration-none">
@@ -726,61 +678,6 @@ $stats = $result_stats->fetch_assoc();
                         </tbody>
                     </table>
                 </div>
-                
-                <!-- Paginación -->
-                <?php if ($total_paginas > 1): ?>
-                <div class="row mt-4">
-                    <div class="col-md-12">
-                        <nav aria-label="Paginación">
-                            <ul class="pagination justify-content-center">
-                                <li class="page-item <?php echo $pagina <= 1 ? 'disabled' : ''; ?>">
-                                    <a class="page-link" href="<?php echo generarUrlPagina(1); ?>">
-                                        <i class="fas fa-angle-double-left"></i>
-                                    </a>
-                                </li>
-                                <li class="page-item <?php echo $pagina <= 1 ? 'disabled' : ''; ?>">
-                                    <a class="page-link" href="<?php echo generarUrlPagina($pagina - 1); ?>">
-                                        <i class="fas fa-angle-left"></i>
-                                    </a>
-                                </li>
-                                
-                                <?php
-                                $inicio = max(1, $pagina - 2);
-                                $fin = min($total_paginas, $pagina + 2);
-                                
-                                if ($inicio > 1) {
-                                    echo '<li class="page-item disabled"><span class="page-link">...</span></li>';
-                                }
-                                
-                                for ($i = $inicio; $i <= $fin; $i++):
-                                ?>
-                                <li class="page-item <?php echo $i == $pagina ? 'active' : ''; ?>">
-                                    <a class="page-link" href="<?php echo generarUrlPagina($i); ?>">
-                                        <?php echo $i; ?>
-                                    </a>
-                                </li>
-                                <?php endfor; ?>
-                                
-                                if ($fin < $total_paginas) {
-                                    echo '<li class="page-item disabled"><span class="page-link">...</span></li>';
-                                }
-                                ?>
-                                
-                                <li class="page-item <?php echo $pagina >= $total_paginas ? 'disabled' : ''; ?>">
-                                    <a class="page-link" href="<?php echo generarUrlPagina($pagina + 1); ?>">
-                                        <i class="fas fa-angle-right"></i>
-                                    </a>
-                                </li>
-                                <li class="page-item <?php echo $pagina >= $total_paginas ? 'disabled' : ''; ?>">
-                                    <a class="page-link" href="<?php echo generarUrlPagina($total_paginas); ?>">
-                                        <i class="fas fa-angle-double-right"></i>
-                                    </a>
-                                </li>
-                            </ul>
-                        </nav>
-                    </div>
-                </div>
-                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -845,7 +742,7 @@ function generarColor($nombre) {
 
 // Función para generar URL con ordenamiento
 function generarUrlOrden($columna) {
-    global $filtro_proveedor, $filtro_categoria, $filtro_stock, $filtro_busqueda, $orden, $direccion, $pagina, $por_pagina;
+    global $filtro_proveedor, $filtro_categoria, $filtro_stock, $filtro_busqueda, $orden, $direccion;
     
     $url = "inventario.php?";
     $params = [];
@@ -854,8 +751,6 @@ function generarUrlOrden($columna) {
     if ($filtro_categoria) $params[] = "categoria=" . urlencode($filtro_categoria);
     if ($filtro_stock) $params[] = "stock=" . urlencode($filtro_stock);
     if ($filtro_busqueda) $params[] = "busqueda=" . urlencode($filtro_busqueda);
-    if ($pagina > 1) $params[] = "pagina=" . $pagina;
-    if ($por_pagina != 50) $params[] = "por_pagina=" . $por_pagina;
     
     // Determinar dirección de ordenamiento
     $nueva_direccion = ($orden == $columna && $direccion == 'asc') ? 'desc' : 'asc';
@@ -865,23 +760,26 @@ function generarUrlOrden($columna) {
     return $url . implode('&', $params);
 }
 
-// Función para generar URL con página específica
-function generarUrlPagina($num_pagina) {
-    global $filtro_proveedor, $filtro_categoria, $filtro_stock, $filtro_busqueda, $orden, $direccion, $por_pagina;
-    
-    $url = "inventario.php?";
-    $params = [];
-    
-    if ($filtro_proveedor) $params[] = "proveedor=" . urlencode($filtro_proveedor);
-    if ($filtro_categoria) $params[] = "categoria=" . urlencode($filtro_categoria);
-    if ($filtro_stock) $params[] = "stock=" . urlencode($filtro_stock);
-    if ($filtro_busqueda) $params[] = "busqueda=" . urlencode($filtro_busqueda);
-    if ($num_pagina > 1) $params[] = "pagina=" . $num_pagina;
-    if ($por_pagina != 50) $params[] = "por_pagina=" . $por_pagina;
-    if ($orden != 'proveedor_codigo') $params[] = "orden=" . urlencode($orden);
-    if ($direccion != 'asc') $params[] = "dir=" . urlencode($direccion);
-    
-    return $url . implode('&', $params);
+// Función auxiliar para obtener nombre del proveedor
+function obtenerNombreProveedor($id) {
+    global $conn;
+    $query = "SELECT nombre FROM proveedores WHERE id = ?";
+    $stmt = $conn->prepare($query);
+    $stmt->bind_param("i", $id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    return $result->num_rows > 0 ? $result->fetch_assoc()['nombre'] : 'Desconocido';
+}
+
+// Función auxiliar para obtener nombre de la categoría
+function obtenerNombreCategoria($id) {
+    global $conn;
+    $query = "SELECT nombre FROM categorias WHERE id = ?";
+    $stmt = $conn->prepare($query);
+    $stmt->bind_param("i", $id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    return $result->num_rows > 0 ? $result->fetch_assoc()['nombre'] : 'Desconocida';
 }
 ?>
 
@@ -925,20 +823,18 @@ function generarUrlPagina($num_pagina) {
     font-weight: 500;
 }
 
-.pagination .page-item.active .page-link {
-    background-color: #28a745;
-    border-color: #28a745;
-}
-
 .card-header {
     border-bottom: none;
 }
 
 .table thead th {
-    position: sticky;
-    top: 0;
     background-color: #2c3e50;
     z-index: 10;
+}
+
+.table-responsive {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
 }
 
 @media (max-width: 768px) {
@@ -958,7 +854,7 @@ function generarUrlPagina($num_pagina) {
 /* Estilos para impresión */
 @media print {
     .card-header, .card-footer, .btn, .modal, 
-    .collapse, .pagination, .input-group {
+    .collapse, .input-group {
         display: none !important;
     }
     
@@ -1010,16 +906,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 personalizada.value = '';
             }
             
-            // Mostrar/ocultar campo personalizado
-            personalizada.addEventListener('input', function() {
+            // Remover event listeners anteriores
+            const newSelect = select.cloneNode(true);
+            const newPersonalizada = personalizada.cloneNode(true);
+            select.parentNode.replaceChild(newSelect, select);
+            personalizada.parentNode.replaceChild(newPersonalizada, personalizada);
+            
+            // Agregar nuevos event listeners
+            newPersonalizada.addEventListener('input', function() {
                 if (this.value) {
-                    select.value = '';
+                    newSelect.value = '';
                 }
             });
             
-            select.addEventListener('change', function() {
+            newSelect.addEventListener('change', function() {
                 if (this.value) {
-                    personalizada.value = '';
+                    newPersonalizada.value = '';
                 }
             });
         });
@@ -1032,7 +934,6 @@ document.addEventListener('DOMContentLoaded', function() {
         buscador.addEventListener('input', function() {
             clearTimeout(timeout);
             timeout = setTimeout(() => {
-                document.querySelector('input[name="pagina"]').value = '1';
                 document.getElementById('formFiltros').submit();
             }, 500);
         });
@@ -1066,8 +967,8 @@ function exportarInventarioExcel() {
     });
     csv.push(headers.join(','));
     
-    // Obtener datos de las filas visibles
-    document.querySelectorAll('#tablaInventario tbody tr:not([style*="display: none"])').forEach(tr => {
+    // Obtener datos de las filas
+    document.querySelectorAll('#tablaInventario tbody tr').forEach(tr => {
         let row = [];
         tr.querySelectorAll('td').forEach(td => {
             let text = td.textContent.trim().replace(/,/g, ';').replace(/\n/g, ' ');
@@ -1235,9 +1136,7 @@ function agregarBuscadorRapido() {
 }
 
 // Inicializar buscador rápido
-document.addEventListener('DOMContentLoaded', function() {
-    agregarBuscadorRapido();
-});
+agregarBuscadorRapido();
 
 // Función para resaltar filas según stock
 function resaltarFilas() {
@@ -1273,45 +1172,18 @@ function copiarInformacionProducto(codigo, nombre, proveedor, stock) {
 }
 
 // Agregar eventos de doble clic para copiar información
-document.addEventListener('DOMContentLoaded', function() {
-    const filas = document.querySelectorAll('#tablaInventario tbody tr');
-    filas.forEach(fila => {
-        fila.addEventListener('dblclick', function() {
-            const codigo = this.getAttribute('data-codigo');
-            const nombre = this.getAttribute('data-nombre');
-            const proveedor = this.getAttribute('data-proveedor');
-            const stock = this.getAttribute('data-stock');
-            
-            if (confirm('¿Copiar información del producto?')) {
-                copiarInformacionProducto(codigo, nombre, proveedor, stock);
-            }
-        });
+document.querySelectorAll('#tablaInventario tbody tr').forEach(fila => {
+    fila.addEventListener('dblclick', function() {
+        const codigo = this.getAttribute('data-codigo');
+        const nombre = this.getAttribute('data-nombre');
+        const proveedor = this.getAttribute('data-proveedor');
+        const stock = this.getAttribute('data-stock');
+        
+        if (confirm('¿Copiar información del producto?')) {
+            copiarInformacionProducto(codigo, nombre, proveedor, stock);
+        }
     });
 });
 </script>
-
-<?php
-// Función auxiliar para obtener nombre del proveedor
-function obtenerNombreProveedor($id) {
-    global $conn;
-    $query = "SELECT nombre FROM proveedores WHERE id = ?";
-    $stmt = $conn->prepare($query);
-    $stmt->bind_param("i", $id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    return $result->num_rows > 0 ? $result->fetch_assoc()['nombre'] : 'Desconocido';
-}
-
-// Función auxiliar para obtener nombre de la categoría
-function obtenerNombreCategoria($id) {
-    global $conn;
-    $query = "SELECT nombre FROM categorias WHERE id = ?";
-    $stmt = $conn->prepare($query);
-    $stmt->bind_param("i", $id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    return $result->num_rows > 0 ? $result->fetch_assoc()['nombre'] : 'Desconocida';
-}
-?>
 
 <?php require_once 'footer.php'; ?>

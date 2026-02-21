@@ -304,7 +304,7 @@ $mes_actual = $meses[(int)date('m')];
 </style>
 
 <!-- ===================================================
-     ENCABEZADO DEL DASHBOARD CON CONTROLES DE REPORTES
+     ENCABEZADO DEL DASHBOARD
      =================================================== -->
 <div class="dashboard-wrapper">
     <div class="grid-span-12">
@@ -323,57 +323,12 @@ $mes_actual = $meses[(int)date('m')];
                         <span class="badge bg-success"><?php echo ucfirst($_SESSION['usuario_rol']); ?></span>
                     </p>
                 </div>
-                
-                <!-- Panel de Reportes Rápidos -->
-                <div class="report-btn-group mt-3 mt-md-0">
-                    <div class="dropdown">
-                        <button class="report-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="fas fa-file-pdf text-danger"></i>
-                            Exportar PDF
-                        </button>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="javascript:void(0);" onclick="generarReporte('ventas_diarias', 'pdf')">Reporte de Ventas Diarias</a></li>
-                            <li><a class="dropdown-item" href="javascript:void(0);" onclick="generarReporte('ventas_mensuales', 'pdf')">Reporte de Ventas Mensuales</a></li>
-                            <li><a class="dropdown-item" href="javascript:void(0);" onclick="generarReporte('inventario_completo', 'pdf')">Reporte de Inventario</a></li>
-                            <li><a class="dropdown-item" href="javascript:void(0);" onclick="generarReporte('estado_cuentas', 'pdf')">Estado de Cuentas</a></li>
-                            <li><a class="dropdown-item" href="javascript:void(0);" onclick="generarReporte('deudas_proveedores', 'pdf')">Cuentas Proveedores</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="javascript:void(0);" onclick="generarReporte('balance_general', 'pdf')">Balance General</a></li>
-                        </ul>
-                    </div>
-                    
-                    <div class="dropdown">
-                        <button class="report-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="fas fa-file-excel text-success"></i>
-                            Exportar Excel
-                        </button>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="javascript:void(0);" onclick="generarReporte('ventas_diarias', 'excel')">Reporte de Ventas Diarias</a></li>
-                            <li><a class="dropdown-item" href="javascript:void(0);" onclick="generarReporte('ventas_mensuales', 'excel')">Reporte de Ventas Mensuales</a></li>
-                            <li><a class="dropdown-item" href="javascript:void(0);" onclick="generarReporte('inventario_completo', 'excel')">Reporte de Inventario</a></li>
-                            <li><a class="dropdown-item" href="javascript:void(0);" onclick="generarReporte('estado_cuentas', 'excel')">Estado de Cuentas</a></li>
-                            <li><a class="dropdown-item" href="javascript:void(0);" onclick="generarReporte('deudas_proveedores', 'excel')">Cuentas Proveedores</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="javascript:void(0);" onclick="generarReporte('balance_general', 'excel')">Balance General</a></li>
-                        </ul>
-                    </div>
-                    
-                    <button class="report-btn" onclick="window.location.reload()">
-                        <i class="fas fa-sync-alt"></i>
-                        Actualizar
-                    </button>
-                    
-                    <button class="report-btn" data-bs-toggle="modal" data-bs-target="#reportePersonalizadoModal">
-                        <i class="fas fa-cog"></i>
-                        Personalizado
-                    </button>
-                </div>
             </div>
         </div>
     </div>
 
     <!-- ===================================================
-         FILA 1: ESTADÍSTICAS PRINCIPALES (7 TARJETAS)
+         FILA 1: ESTADÍSTICAS PRINCIPALES
          =================================================== -->
     <!-- Tarjeta 1: Ventas del Día -->
     <div class="stat-card" style="background: linear-gradient(135deg, #667eea, #764ba2);">
@@ -519,33 +474,33 @@ $mes_actual = $meses[(int)date('m')];
     </div>
 
     <!-- ===================================================
-         FILA 2: GRÁFICOS PRINCIPALES (3 GRÁFICOS)
+         FILA 2: GRÁFICOS PRINCIPALES
          =================================================== -->
-    <!-- GRÁFICO 1: Ventas Semanales - Líneas -->
+    <!-- GRÁFICO 1: Ventas - Líneas -->
     <div class="grid-span-7 chart-card">
         <div class="chart-header">
             <h5 class="chart-title">
                 <i class="fas fa-chart-line"></i>
-                Tendencia de Ventas Semanales
+                Tendencia de Ventas
             </h5>
-            <div class="btn-group" style="gap: 5px;">
+            <div class="btn-group" style="gap: 5px;" id="periodoVentasButtons">
                 <button class="report-btn active" onclick="cambiarPeriodoVentas('semana', this)">
                     <i class="fas fa-calendar-week"></i> Semana
                 </button>
-                <button class="report-btn" onclick="cambiarPeriodoVentas('mes', this)">
+                <!--<button class="report-btn" onclick="cambiarPeriodoVentas('mes', this)">
                     <i class="fas fa-calendar-alt"></i> Mes
                 </button>
-                <button class="report-btn" onclick="cambiarPeriodoVentas('año', this)">
+                <button class="report-btn" onclick="cambiarPeriodoVentas('anio', this)">
                     <i class="fas fa-calendar"></i> Año
-                </button>
+                </button>-->
             </div>
         </div>
         <div class="chart-container">
-            <canvas id="graficoVentasSemanales"></canvas>
+            <canvas id="graficoVentas"></canvas>
         </div>
     </div>
 
-    <!-- GRÁFICO 2: Distribución de Ventas por Tipo - Pastel -->
+    <!-- GRÁFICO 2: Ventas por Tipo - Pastel -->
     <div class="grid-span-5 chart-card">
         <div class="chart-header">
             <h5 class="chart-title">
@@ -577,9 +532,9 @@ $mes_actual = $meses[(int)date('m')];
     </div>
 
     <!-- ===================================================
-         FILA 3: GRÁFICOS SECUNDARIOS (4 GRÁFICOS)
+         FILA 3: GRÁFICOS SECUNDARIOS
          =================================================== -->
-    <!-- GRÁFICO 3: Productos Más Vendidos - Barras -->
+    <!-- GRÁFICO 3: Productos Más Vendidos -->
     <div class="grid-span-4 chart-card">
         <div class="chart-header">
             <h5 class="chart-title">
@@ -601,7 +556,7 @@ $mes_actual = $meses[(int)date('m')];
         </div>
     </div>
 
-    <!-- GRÁFICO 4: Estado de Inventario - Gauge -->
+    <!-- GRÁFICO 4: Estado de Inventario -->
     <div class="grid-span-4 chart-card">
         <div class="chart-header">
             <h5 class="chart-title">
@@ -620,7 +575,7 @@ $mes_actual = $meses[(int)date('m')];
         </div>
     </div>
 
-    <!-- GRÁFICO 5: Gastos por Categoría - Dona -->
+    <!-- GRÁFICO 5: Gastos por Categoría -->
     <div class="grid-span-4 chart-card">
         <div class="chart-header">
             <h5 class="chart-title">
@@ -634,16 +589,20 @@ $mes_actual = $meses[(int)date('m')];
         </div>
     </div>
 
-    <!-- GRÁFICO 6: Evolución de Cobros - Área -->
+    <!-- GRÁFICO 6: Evolución de Cobros -->
     <div class="grid-span-6 chart-card">
         <div class="chart-header">
             <h5 class="chart-title">
                 <i class="fas fa-hand-holding-usd"></i>
                 Evolución de Cobros
             </h5>
-            <div class="btn-group" style="gap: 5px;">
-                <button class="report-btn active" onclick="cambiarPeriodoCobros('semana', this)">Semana</button>
-                <button class="report-btn" onclick="cambiarPeriodoCobros('mes', this)">Mes</button>
+            <div class="btn-group" style="gap: 5px;" id="periodoCobrosButtons">
+                <button class="report-btn active" onclick="cambiarPeriodoCobros('semana', this)">
+                    <i class="fas fa-calendar-week"></i> Semana
+                </button>
+                <button class="report-btn" onclick="cambiarPeriodoCobros('mes', this)">
+                    <i class="fas fa-calendar-alt"></i> Mes
+                </button>
             </div>
         </div>
         <div class="chart-container" style="height: 250px;">
@@ -651,7 +610,7 @@ $mes_actual = $meses[(int)date('m')];
         </div>
     </div>
 
-    <!-- GRÁFICO 7: Rentabilidad - Barras Apiladas -->
+    <!-- GRÁFICO 7: Rentabilidad -->
     <div class="grid-span-6 chart-card">
         <div class="chart-header">
             <h5 class="chart-title">
@@ -986,12 +945,10 @@ $mes_actual = $meses[(int)date('m')];
     </div>
 </div>
 
-<!-- SweetAlert2 -->
+<!-- Scripts necesarios -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
-<!-- jsPDF -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <script>
@@ -1005,15 +962,16 @@ Chart.register(ChartDataLabels);
 // Datos para los gráficos (desde PHP)
 const datosDashboard = <?php echo json_encode($dashboard_data); ?>;
 
-// ===================================================
-// GRÁFICO 1: VENTAS SEMANALES (LÍNEAS)
-// ===================================================
-let graficoVentasSemanales;
+// Variables globales para los gráficos
+let graficoVentas, graficoVentasTipo, graficoProductosTop, graficoInventario, graficoGastos, graficoCobros, graficoRentabilidad;
 
-function inicializarGraficoVentasSemanales() {
-    const ctx = document.getElementById('graficoVentasSemanales').getContext('2d');
+// ===================================================
+// GRÁFICO 1: VENTAS (LÍNEAS)
+// ===================================================
+function inicializarGraficoVentas() {
+    const ctx = document.getElementById('graficoVentas').getContext('2d');
     
-    graficoVentasSemanales = new Chart(ctx, {
+    graficoVentas = new Chart(ctx, {
         type: 'line',
         data: {
             labels: datosDashboard.ventas_semanales?.labels || ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'],
@@ -1036,13 +994,9 @@ function inicializarGraficoVentasSemanales() {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: {
-                    display: false
-                },
+                legend: { display: false },
                 tooltip: {
                     backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                    titleColor: '#fff',
-                    bodyColor: '#fff',
                     callbacks: {
                         label: function(context) {
                             return 'Bs ' + context.raw.toLocaleString('es-BO', {
@@ -1052,36 +1006,28 @@ function inicializarGraficoVentasSemanales() {
                         }
                     }
                 },
-                datalabels: {
-                    display: false
-                }
+                datalabels: { display: false }
             },
             scales: {
                 y: {
                     beginAtZero: true,
-                    grid: {
-                        color: 'rgba(0, 0, 0, 0.05)'
-                    },
+                    grid: { color: 'rgba(0, 0, 0, 0.05)' },
                     ticks: {
                         callback: function(value) {
                             return 'Bs ' + value.toLocaleString();
                         }
                     }
                 },
-                x: {
-                    grid: {
-                        display: false
-                    }
-                }
+                x: { grid: { display: false } }
             }
         }
     });
 }
 
-// Función para cambiar período de ventas
+// Función para cambiar período de ventas - CORREGIDA
 function cambiarPeriodoVentas(periodo, btn) {
     // Actualizar botones
-    const buttons = document.querySelectorAll('#graficoVentasSemanales').closest('.chart-card').querySelectorAll('.btn-group .report-btn');
+    const buttons = document.querySelectorAll('#periodoVentasButtons .report-btn');
     buttons.forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     
@@ -1089,21 +1035,25 @@ function cambiarPeriodoVentas(periodo, btn) {
     Swal.fire({
         title: 'Cargando datos...',
         allowOutsideClick: false,
-        didOpen: () => {
-            Swal.showLoading();
-        }
+        didOpen: () => { Swal.showLoading(); }
     });
     
     // Petición AJAX
     fetch(`api/ventas_data.php?periodo=${periodo}`)
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) throw new Error('Error en la respuesta del servidor');
+            return response.json();
+        })
         .then(data => {
-            if (data.error) {
-                throw new Error(data.error);
+            if (data.error) throw new Error(data.error);
+            
+            // Actualizar gráfico
+            if (graficoVentas) {
+                graficoVentas.data.labels = data.labels || [];
+                graficoVentas.data.datasets[0].data = data.valores || [];
+                graficoVentas.update();
             }
-            graficoVentasSemanales.data.labels = data.labels || [];
-            graficoVentasSemanales.data.datasets[0].data = data.valores || [];
-            graficoVentasSemanales.update();
+            
             Swal.close();
         })
         .catch(error => {
@@ -1113,12 +1063,12 @@ function cambiarPeriodoVentas(periodo, btn) {
 }
 
 // ===================================================
-// GRÁFICO 2: VENTAS POR TIPO (PASTEL)
+// GRÁFICO 2: VENTAS POR TIPO
 // ===================================================
 function inicializarGraficoVentasTipo() {
     const ctx = document.getElementById('graficoVentasTipo').getContext('2d');
     
-    new Chart(ctx, {
+    graficoVentasTipo = new Chart(ctx, {
         type: 'doughnut',
         data: {
             labels: ['Contado', 'Crédito', 'Mixto'],
@@ -1128,11 +1078,7 @@ function inicializarGraficoVentasTipo() {
                     datosDashboard.ventas_credito_hoy || 0,
                     datosDashboard.ventas_mixto_hoy || 0
                 ],
-                backgroundColor: [
-                    '#28a745',
-                    '#ffc107',
-                    '#17a2b8'
-                ],
+                backgroundColor: ['#28a745', '#ffc107', '#17a2b8'],
                 borderWidth: 0,
                 hoverOffset: 10
             }]
@@ -1141,9 +1087,7 @@ function inicializarGraficoVentasTipo() {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: {
-                    display: false
-                },
+                legend: { display: false },
                 tooltip: {
                     callbacks: {
                         label: function(context) {
@@ -1163,10 +1107,7 @@ function inicializarGraficoVentasTipo() {
                         const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
                         return percentage > 5 ? percentage + '%' : '';
                     },
-                    font: {
-                        weight: 'bold',
-                        size: 12
-                    }
+                    font: { weight: 'bold', size: 12 }
                 }
             },
             cutout: '70%'
@@ -1175,16 +1116,16 @@ function inicializarGraficoVentasTipo() {
 }
 
 // ===================================================
-// GRÁFICO 3: TOP 5 PRODUCTOS (BARRAS)
+// GRÁFICO 3: TOP 5 PRODUCTOS
 // ===================================================
 function inicializarGraficoProductosTop() {
     const ctx = document.getElementById('graficoProductosTop').getContext('2d');
     
     const productos = datosDashboard.top_productos || [];
-    const labels = productos.map(p => p.codigo);
+    const labels = productos.map(p => p.codigo || p.nombre_color);
     const valores = productos.map(p => p.total_vendido || 0);
     
-    new Chart(ctx, {
+    graficoProductosTop = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: labels,
@@ -1199,11 +1140,7 @@ function inicializarGraficoProductosTop() {
                     'rgba(153, 102, 255, 0.8)'
                 ],
                 borderColor: [
-                    '#28a745',
-                    '#36a2eb',
-                    '#ffce56',
-                    '#ff6384',
-                    '#9966ff'
+                    '#28a745', '#36a2eb', '#ffce56', '#ff6384', '#9966ff'
                 ],
                 borderWidth: 1,
                 borderRadius: 5
@@ -1213,25 +1150,19 @@ function inicializarGraficoProductosTop() {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: {
-                    display: false
-                },
+                legend: { display: false },
                 datalabels: {
                     display: true,
                     anchor: 'end',
                     align: 'top',
                     formatter: (value) => value + ' und',
-                    font: {
-                        weight: 'bold'
-                    }
+                    font: { weight: 'bold' }
                 }
             },
             scales: {
                 y: {
                     beginAtZero: true,
-                    grid: {
-                        color: 'rgba(0, 0, 0, 0.05)'
-                    }
+                    grid: { color: 'rgba(0, 0, 0, 0.05)' }
                 }
             }
         }
@@ -1239,7 +1170,7 @@ function inicializarGraficoProductosTop() {
 }
 
 // ===================================================
-// GRÁFICO 4: ESTADO DEL INVENTARIO (GAUGE)
+// GRÁFICO 4: ESTADO DEL INVENTARIO
 // ===================================================
 function inicializarGraficoInventario() {
     const ctx = document.getElementById('graficoInventario').getContext('2d');
@@ -1248,17 +1179,13 @@ function inicializarGraficoInventario() {
     const stockBajo = datosDashboard.total_productos_bajos || 0;
     const stockCritico = datosDashboard.total_productos_criticos || 0;
     
-    new Chart(ctx, {
+    graficoInventario = new Chart(ctx, {
         type: 'doughnut',
         data: {
             labels: ['Normal', 'Bajo', 'Crítico'],
             datasets: [{
                 data: [stockNormal, stockBajo, stockCritico],
-                backgroundColor: [
-                    '#28a745',
-                    '#ffc107',
-                    '#dc3545'
-                ],
+                backgroundColor: ['#28a745', '#ffc107', '#dc3545'],
                 borderWidth: 0
             }]
         },
@@ -1267,9 +1194,7 @@ function inicializarGraficoInventario() {
             maintainAspectRatio: false,
             cutout: '80%',
             plugins: {
-                legend: {
-                    display: false
-                },
+                legend: { display: false },
                 tooltip: {
                     callbacks: {
                         label: function(context) {
@@ -1281,39 +1206,44 @@ function inicializarGraficoInventario() {
                         }
                     }
                 },
-                datalabels: {
-                    display: false
-                }
+                datalabels: { display: false }
             }
         }
     });
 }
 
 // ===================================================
-// GRÁFICO 5: GASTOS POR CATEGORÍA (DONA)
+// GRÁFICO 5: GASTOS POR CATEGORÍA
 // ===================================================
 function inicializarGraficoGastos() {
     const ctx = document.getElementById('graficoGastos').getContext('2d');
     
     const gastos = datosDashboard.gastos_mes || {};
+    const categorias = {
+        'gasto_almuerzo': 'Almuerzos',
+        'gasto_varios': 'Varios',
+        'pago_proveedor': 'Proveedores',
+        'otros': 'Otros'
+    };
     
-    new Chart(ctx, {
+    const labels = [];
+    const valores = [];
+    const colores = ['#ffc107', '#17a2b8', '#6f42c1', '#6c757d'];
+    
+    Object.keys(categorias).forEach((key, index) => {
+        if (gastos[key] > 0) {
+            labels.push(categorias[key]);
+            valores.push(gastos[key]);
+        }
+    });
+    
+    graficoGastos = new Chart(ctx, {
         type: 'doughnut',
         data: {
-            labels: ['Almuerzos', 'Varios', 'Proveedores', 'Otros'],
+            labels: labels,
             datasets: [{
-                data: [
-                    gastos.gasto_almuerzo || 0,
-                    gastos.gasto_varios || 0,
-                    gastos.pago_proveedor || 0,
-                    gastos.otros || 0
-                ],
-                backgroundColor: [
-                    '#ffc107',
-                    '#17a2b8',
-                    '#6f42c1',
-                    '#6c757d'
-                ],
+                data: valores,
+                backgroundColor: colores.slice(0, valores.length),
                 borderWidth: 0
             }]
         },
@@ -1321,9 +1251,7 @@ function inicializarGraficoGastos() {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: {
-                    display: false
-                },
+                legend: { display: false },
                 tooltip: {
                     callbacks: {
                         label: function(context) {
@@ -1343,10 +1271,7 @@ function inicializarGraficoGastos() {
                         const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
                         return percentage > 5 ? percentage + '%' : '';
                     },
-                    font: {
-                        weight: 'bold',
-                        size: 11
-                    }
+                    font: { weight: 'bold', size: 11 }
                 }
             }
         }
@@ -1354,7 +1279,7 @@ function inicializarGraficoGastos() {
 }
 
 // ===================================================
-// GRÁFICO 6: EVOLUCIÓN DE COBROS (ÁREA)
+// GRÁFICO 6: EVOLUCIÓN DE COBROS
 // ===================================================
 function inicializarGraficoCobros() {
     const ctx = document.getElementById('graficoCobros').getContext('2d');
@@ -1364,7 +1289,7 @@ function inicializarGraficoCobros() {
         valores: [0, 0, 0, 0, 0, 0, 0]
     };
     
-    new Chart(ctx, {
+    graficoCobros = new Chart(ctx, {
         type: 'line',
         data: {
             labels: cobros.labels,
@@ -1382,19 +1307,13 @@ function inicializarGraficoCobros() {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: {
-                    display: false
-                },
-                datalabels: {
-                    display: false
-                }
+                legend: { display: false },
+                datalabels: { display: false }
             },
             scales: {
                 y: {
                     beginAtZero: true,
-                    grid: {
-                        color: 'rgba(0, 0, 0, 0.05)'
-                    },
+                    grid: { color: 'rgba(0, 0, 0, 0.05)' },
                     ticks: {
                         callback: function(value) {
                             return 'Bs ' + value.toLocaleString();
@@ -1406,18 +1325,56 @@ function inicializarGraficoCobros() {
     });
 }
 
+// Función para cambiar período de cobros - CORREGIDA
+function cambiarPeriodoCobros(periodo, btn) {
+    // Actualizar botones
+    const buttons = document.querySelectorAll('#periodoCobrosButtons .report-btn');
+    buttons.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    
+    // Mostrar loading
+    Swal.fire({
+        title: 'Cargando datos...',
+        allowOutsideClick: false,
+        didOpen: () => { Swal.showLoading(); }
+    });
+    
+    // Petición AJAX
+    fetch(`api/cobros_data.php?periodo=${periodo}`)
+        .then(response => {
+            if (!response.ok) throw new Error('Error en la respuesta del servidor');
+            return response.json();
+        })
+        .then(data => {
+            if (data.error) throw new Error(data.error);
+            
+            // Actualizar gráfico
+            if (graficoCobros) {
+                graficoCobros.data.labels = data.labels || [];
+                graficoCobros.data.datasets[0].data = data.valores || [];
+                graficoCobros.update();
+            }
+            
+            Swal.close();
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            Swal.fire('Error', 'No se pudieron cargar los datos', 'error');
+        });
+}
+
 // ===================================================
-// GRÁFICO 7: RENTABILIDAD POR PRODUCTO (BARRAS APILADAS)
+// GRÁFICO 7: RENTABILIDAD
 // ===================================================
 function inicializarGraficoRentabilidad() {
     const ctx = document.getElementById('graficoRentabilidad').getContext('2d');
     
     const productos = datosDashboard.top_productos || [];
-    const labels = productos.map(p => p.codigo).slice(0, 5);
-    const ventas = productos.map(p => p.total_ingresos || 0).slice(0, 5);
-    const costos = productos.map(p => (p.total_ingresos || 0) * 0.6).slice(0, 5);
+    const labels = productos.map(p => p.codigo || p.nombre_color).slice(0, 5);
+    const ventas = productos.map(p => parseFloat(p.total_ingresos || 0)).slice(0, 5);
+    const costos = ventas.map(v => v * 0.6);
     
-    new Chart(ctx, {
+    graficoRentabilidad = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: labels,
@@ -1451,16 +1408,12 @@ function inicializarGraficoRentabilidad() {
                         }
                     }
                 },
-                datalabels: {
-                    display: false
-                }
+                datalabels: { display: false }
             },
             scales: {
                 x: {
                     stacked: true,
-                    grid: {
-                        display: false
-                    }
+                    grid: { display: false }
                 },
                 y: {
                     stacked: true,
@@ -1477,32 +1430,27 @@ function inicializarGraficoRentabilidad() {
 }
 
 // ===================================================
-// FUNCIONES PARA REPORTES - CORREGIDAS
+// FUNCIONES PARA REPORTES
 // ===================================================
 
 /**
  * Generar reporte rápido
  */
 function generarReporte(tipo, formato) {
-    // Mostrar loading
     Swal.fire({
         title: 'Generando reporte...',
         text: 'Por favor espere',
         allowOutsideClick: false,
-        didOpen: () => {
-            Swal.showLoading();
-        }
+        didOpen: () => { Swal.showLoading(); }
     });
     
-    // Crear formulario dinámico
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = 'exportar_reporte.php';
     form.target = '_blank';
     
-    // Valores por defecto
-    const fechaInicio = '<?php echo date('Y-m-01'); ?>';
-    const fechaFin = '<?php echo date('Y-m-d'); ?>';
+    const fechaInicio = document.getElementById('fecha_inicio')?.value || '<?php echo date('Y-m-01'); ?>';
+    const fechaFin = document.getElementById('fecha_fin')?.value || '<?php echo date('Y-m-d'); ?>';
     
     const inputs = {
         tipo_reporte: tipo,
@@ -1536,7 +1484,6 @@ function generarReporte(tipo, formato) {
 function generarReportePersonalizado() {
     const form = document.getElementById('reporteForm');
     
-    // Validar fechas
     const fechaInicio = new Date(document.getElementById('fecha_inicio').value);
     const fechaFin = new Date(document.getElementById('fecha_fin').value);
     
@@ -1545,78 +1492,32 @@ function generarReportePersonalizado() {
         return;
     }
     
-    // Validar tipo de reporte
     if (!document.getElementById('tipo_reporte').value) {
         Swal.fire('Error', 'Seleccione un tipo de reporte', 'error');
         return;
     }
     
-    // Validar formato
     if (!document.getElementById('formato').value) {
         Swal.fire('Error', 'Seleccione un formato de exportación', 'error');
         return;
     }
     
-    // Mostrar loading
     Swal.fire({
         title: 'Generando reporte...',
         text: 'Esto puede tomar unos segundos',
         allowOutsideClick: false,
-        didOpen: () => {
-            Swal.showLoading();
-        }
+        didOpen: () => { Swal.showLoading(); }
     });
     
-    // Enviar formulario
     form.submit();
     
     setTimeout(() => {
         Swal.close();
-        
-        // Cerrar modal si existe Bootstrap
         if (typeof bootstrap !== 'undefined') {
             const modal = bootstrap.Modal.getInstance(document.getElementById('reportePersonalizadoModal'));
-            if (modal) {
-                modal.hide();
-            }
+            if (modal) modal.hide();
         }
     }, 2000);
-}
-
-/**
- * Cambiar período de cobros
- */
-function cambiarPeriodoCobros(periodo, btn) {
-    // Actualizar botones
-    const buttons = document.querySelectorAll('#graficoCobros').closest('.chart-card').querySelectorAll('.btn-group .report-btn');
-    buttons.forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    
-    // Mostrar loading
-    Swal.fire({
-        title: 'Cargando datos...',
-        allowOutsideClick: false,
-        didOpen: () => {
-            Swal.showLoading();
-        }
-    });
-    
-    // Petición AJAX
-    fetch(`api/cobros_data.php?periodo=${periodo}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) {
-                throw new Error(data.error);
-            }
-            
-            // Aquí actualizarías el gráfico de cobros
-            console.log('Datos de cobros cargados:', data);
-            Swal.close();
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            Swal.fire('Error', 'No se pudieron cargar los datos', 'error');
-        });
 }
 
 /**
@@ -1635,7 +1536,6 @@ function exportarGrafico(graficoId, formato) {
         link.download = `grafico_${graficoId}_${Date.now()}.png`;
         link.href = canvas.toDataURL('image/png');
         link.click();
-        
         Swal.fire('Éxito', 'Gráfico exportado como PNG', 'success');
     } else if (formato === 'pdf') {
         try {
@@ -1644,7 +1544,6 @@ function exportarGrafico(graficoId, formato) {
             const imgData = canvas.toDataURL('image/png');
             pdf.addImage(imgData, 'PNG', 15, 15, 180, 100);
             pdf.save(`grafico_${graficoId}_${Date.now()}.pdf`);
-            
             Swal.fire('Éxito', 'Gráfico exportado como PDF', 'success');
         } catch (error) {
             console.error('Error al exportar PDF:', error);
@@ -1654,11 +1553,64 @@ function exportarGrafico(graficoId, formato) {
 }
 
 // ===================================================
+// FUNCIONES PARA ACTUALIZAR TABLAS
+// ===================================================
+function actualizarTablaVentas(ventas) {
+    const tbody = document.querySelector('.table-dashboard tbody');
+    if (!tbody) return;
+    
+    let html = '';
+    ventas.slice(0, 8).forEach(venta => {
+        let estadoClass = 'alert-success';
+        let estadoText = 'Pagada';
+        
+        if (venta.debe > 0) {
+            estadoClass = 'alert-warning';
+            estadoText = 'Pendiente';
+        }
+        
+        html += `<tr>
+            <td><code>${venta.codigo_venta || ''}</code></td>
+            <td>${venta.cliente || 'Consumidor Final'}</td>
+            <td class="fw-bold">Bs ${parseFloat(venta.total || 0).toFixed(2)}</td>
+            <td><span class="alert-badge ${estadoClass}">${estadoText}</span></td>
+            <td><small>${venta.hora_inicio || ''}</small></td>
+        </tr>`;
+    });
+    tbody.innerHTML = html;
+}
+
+function actualizarTimelineMovimientos(movimientos) {
+    const timeline = document.querySelector('.timeline-dashboard');
+    if (!timeline) return;
+    
+    let html = '';
+    movimientos.slice(0, 8).forEach(mov => {
+        const claseColor = mov.tipo == 'ingreso' ? 'text-success' : 'text-danger';
+        const signo = mov.tipo == 'ingreso' ? '+' : '-';
+        
+        html += `<div class="timeline-item">
+            <div style="display: flex; justify-content: space-between; align-items: start;">
+                <div>
+                    <small class="text-muted">${mov.hora || ''}</small>
+                    <h6 style="margin: 5px 0; font-size: 0.95rem;">${mov.descripcion || ''}</h6>
+                    <small class="text-muted">${(mov.categoria || '').replace(/_/g, ' ')}</small>
+                </div>
+                <div class="${claseColor} fw-bold">
+                    ${signo} Bs ${parseFloat(mov.monto || 0).toFixed(2)}
+                </div>
+            </div>
+        </div>`;
+    });
+    timeline.innerHTML = html;
+}
+
+// ===================================================
 // INICIALIZAR TODOS LOS GRÁFICOS
 // ===================================================
 document.addEventListener('DOMContentLoaded', function() {
     try {
-        inicializarGraficoVentasSemanales();
+        inicializarGraficoVentas();
         inicializarGraficoVentasTipo();
         inicializarGraficoProductosTop();
         inicializarGraficoInventario();
@@ -1699,44 +1651,18 @@ setInterval(function() {
                 return;
             }
             
-            // 1. Actualizar Ventas Hoy
+            // Actualizar Ventas Hoy
             if (data.ventas_hoy && document.getElementById('ventasHoyValue')) {
                 document.getElementById('ventasHoyValue').textContent = data.ventas_hoy.total || 0;
             }
             
-            // 2. Actualizar Balance Caja
-            const balanceElement = document.querySelector('.stat-card:nth-child(4) .stat-value');
-            if (balanceElement && data.balance_caja !== undefined) {
-                balanceElement.textContent = 'Bs ' + data.balance_caja.toLocaleString('es-BO', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
-                });
-            }
-            
-            // 3. Actualizar Cobros Pendientes
-            const cobrosElement = document.querySelector('.stat-card:nth-child(2) .stat-value');
-            if (cobrosElement && data.total_clientes_deuda !== undefined) {
-                cobrosElement.textContent = data.total_clientes_deuda;
-            }
-            
-            const vencidosElement = document.querySelector('.stat-card:nth-child(2) .stat-trend');
-            if (vencidosElement && data.clientes_vencidos !== undefined) {
-                vencidosElement.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${data.clientes_vencidos} vencidos`;
-            }
-            
-            // 4. Actualizar Stock Crítico
-            const stockCriticoElement = document.querySelector('.stat-card:nth-child(3) .stat-value');
-            if (stockCriticoElement && data.total_productos_criticos !== undefined) {
-                stockCriticoElement.textContent = data.total_productos_criticos;
-            }
-            
-            // 5. Actualizar tabla de últimas ventas
-            if (data.ultimas_ventas && data.ultimas_ventas.length > 0) {
+            // Actualizar tabla de últimas ventas
+            if (data.ultimas_ventas) {
                 actualizarTablaVentas(data.ultimas_ventas);
             }
             
-            // 6. Actualizar timeline de movimientos
-            if (data.movimientos && data.movimientos.length > 0) {
+            // Actualizar timeline de movimientos
+            if (data.movimientos) {
                 actualizarTimelineMovimientos(data.movimientos);
             }
             
@@ -1744,50 +1670,6 @@ setInterval(function() {
         })
         .catch(error => console.error('Error en actualización:', error));
 }, 60000);
-
-// Función para actualizar tabla de ventas
-function actualizarTablaVentas(ventas) {
-    const tbody = document.querySelector('.table-dashboard tbody');
-    if (!tbody) return;
-    
-    let html = '';
-    ventas.forEach(venta => {
-        html += `<tr>
-            <td><code>${venta.codigo_venta}</code></td>
-            <td>${venta.cliente}</td>
-            <td class="fw-bold">Bs ${parseFloat(venta.total).toFixed(2)}</td>
-            <td><span class="alert-badge alert-success">Pagada</span></td>
-            <td><small>${venta.hora_inicio}</small></td>
-        </tr>`;
-    });
-    tbody.innerHTML = html;
-}
-
-// Función para actualizar timeline de movimientos
-function actualizarTimelineMovimientos(movimientos) {
-    const timeline = document.querySelector('.timeline-dashboard');
-    if (!timeline) return;
-    
-    let html = '';
-    movimientos.forEach(mov => {
-        const claseColor = mov.tipo == 'ingreso' ? 'text-success' : 'text-danger';
-        const signo = mov.tipo == 'ingreso' ? '+' : '-';
-        
-        html += `<div class="timeline-item">
-            <div style="display: flex; justify-content: space-between; align-items: start;">
-                <div>
-                    <small class="text-muted">${mov.hora}</small>
-                    <h6 style="margin: 5px 0; font-size: 0.95rem;">${mov.descripcion}</h6>
-                    <small class="text-muted">${mov.categoria.replace(/_/g, ' ')}</small>
-                </div>
-                <div class="${claseColor} fw-bold">
-                    ${signo} Bs ${parseFloat(mov.monto).toFixed(2)}
-                </div>
-            </div>
-        </div>`;
-    });
-    timeline.innerHTML = html;
-}
 </script>
 
 <?php

@@ -354,6 +354,20 @@ CREATE TABLE sistema_config (
 
 DELIMITER $$
 
+-- ====================================================
+-- ELIMINAR TRIGGERS EXISTENTES
+-- ====================================================
+DROP TRIGGER IF EXISTS after_venta_detalle_insert$$
+DROP TRIGGER IF EXISTS after_venta_insert$$
+DROP TRIGGER IF EXISTS after_pago_cliente_insert$$
+DROP TRIGGER IF EXISTS after_inventario_insert$$
+DROP TRIGGER IF EXISTS after_inventario_update$$
+DROP TRIGGER IF EXISTS after_pago_proveedor_insert$$
+
+-- ====================================================
+-- TRIGGERS
+-- ====================================================
+
 -- Trigger para actualizar inventario después de venta
 CREATE TRIGGER after_venta_detalle_insert
 AFTER INSERT ON venta_detalles
@@ -533,22 +547,22 @@ BEGIN
     DECLARE v_saldo_nuevo DECIMAL(12,2);
     DECLARE v_costo_total DECIMAL(12,2);
     DECLARE v_proveedor_id INT;
-    
+
     SET v_costo_total = NEW.paquetes_completos * NEW.costo_paquete;
-    
+
     IF v_costo_total > 0 THEN
         SELECT p.id, p.codigo, p.nombre, p.ciudad, p.saldo_actual
         INTO v_proveedor_id, v_codigo_prov, v_nombre_prov, v_ciudad_prov, v_saldo_anterior
         FROM proveedores p
         JOIN productos pr ON p.id = pr.proveedor_id
         WHERE pr.id = NEW.producto_id;
-        
+
         SET v_saldo_nuevo = v_saldo_anterior + v_costo_total;
-        
-        UPDATE proveedores 
+
+        UPDATE proveedores
         SET saldo_actual = v_saldo_nuevo
         WHERE id = v_proveedor_id;
-        
+
         INSERT INTO proveedores_estado_cuentas (
             proveedor_id, codigo_proveedor, nombre_proveedor, ciudad_proveedor,
             compra, a_cuenta, adelanto, saldo, fecha, descripcion, usuario_id
@@ -563,6 +577,57 @@ BEGIN
             v_saldo_nuevo,
             NEW.fecha_ultimo_ingreso,
             CONCAT('Compra de ', NEW.paquetes_completos, ' paquetes'),
+            NEW.usuario_registro
+        );
+    END IF;
+END$$
+
+-- Trigger para actualizar saldo de proveedor al modificar inventario
+CREATE TRIGGER after_inventario_update
+AFTER UPDATE ON inventario
+FOR EACH ROW
+BEGIN
+    DECLARE v_codigo_prov VARCHAR(20);
+    DECLARE v_nombre_prov VARCHAR(100);
+    DECLARE v_ciudad_prov VARCHAR(50);
+    DECLARE v_saldo_anterior DECIMAL(12,2);
+    DECLARE v_saldo_nuevo DECIMAL(12,2);
+    DECLARE v_costo_antes DECIMAL(12,2);
+    DECLARE v_costo_despues DECIMAL(12,2);
+    DECLARE v_diff DECIMAL(12,2);
+    DECLARE v_proveedor_id INT;
+
+    SET v_costo_antes = OLD.paquetes_completos * OLD.costo_paquete;
+    SET v_costo_despues = NEW.paquetes_completos * NEW.costo_paquete;
+    SET v_diff = v_costo_despues - v_costo_antes;
+
+    IF v_diff <> 0 THEN
+        SELECT p.id, p.codigo, p.nombre, p.ciudad, p.saldo_actual
+        INTO v_proveedor_id, v_codigo_prov, v_nombre_prov, v_ciudad_prov, v_saldo_anterior
+        FROM proveedores p
+        JOIN productos pr ON p.id = pr.proveedor_id
+        WHERE pr.id = NEW.producto_id;
+
+        SET v_saldo_nuevo = v_saldo_anterior + v_diff;
+
+        UPDATE proveedores
+        SET saldo_actual = v_saldo_nuevo
+        WHERE id = v_proveedor_id;
+
+        INSERT INTO proveedores_estado_cuentas (
+            proveedor_id, codigo_proveedor, nombre_proveedor, ciudad_proveedor,
+            compra, a_cuenta, adelanto, saldo, fecha, descripcion, usuario_id
+        ) VALUES (
+            v_proveedor_id,
+            v_codigo_prov,
+            v_nombre_prov,
+            v_ciudad_prov,
+            v_diff,
+            v_diff,
+            0.00,
+            v_saldo_nuevo,
+            NEW.fecha_ultimo_ingreso,
+            CONCAT('Ajuste inventario (antes=', v_costo_antes, ', despues=', v_costo_despues, ')'),
             NEW.usuario_registro
         );
     END IF;
@@ -630,6 +695,10 @@ DELIMITER ;
 
 DELIMITER $$
 
+-- Eliminar funciones si existen
+DROP FUNCTION IF EXISTS generar_codigo_venta$$
+DROP FUNCTION IF EXISTS calcular_precio_unitario$$
+
 -- Función para generar código de venta automático
 CREATE FUNCTION generar_codigo_venta() RETURNS VARCHAR(50)
 DETERMINISTIC
@@ -679,6 +748,11 @@ DELIMITER ;
 
 DELIMITER $$
 
+-- Eliminar procedimientos si existen
+DROP PROCEDURE IF EXISTS registrar_gasto$$
+DROP PROCEDURE IF EXISTS cierre_caja_diario$$
+DROP PROCEDURE IF EXISTS ajustar_inventario_fisico$$
+
 -- Procedimiento para registrar gasto varios
 CREATE PROCEDURE registrar_gasto(
     IN p_categoria VARCHAR(20),
@@ -687,7 +761,7 @@ CREATE PROCEDURE registrar_gasto(
     IN p_usuario_id INT
 )
 BEGIN
-    DECLARE v_categoria_enum ENUM('gasto_almuerzo', 'gasto_varios', 'pago_proveedor', 'otros');
+    DECLARE v_categoria_enum VARCHAR(20);
     
     CASE p_categoria
         WHEN 'almuerzo' THEN SET v_categoria_enum = 'gasto_almuerzo';
@@ -737,7 +811,7 @@ BEGIN
         tipo, categoria, monto, descripcion,
         fecha, hora, usuario_id, observaciones
     ) VALUES (
-        'gasto',
+        'ingreso',
         'otros',
         0,
         CONCAT('CIERRE DE CAJA - Balance: ', v_balance, ' Bs'),
@@ -766,6 +840,7 @@ CREATE PROCEDURE ajustar_inventario_fisico(
 BEGIN
     DECLARE v_paquetes_actual INT;
     DECLARE v_subpaquetes_actual INT;
+    DECLARE v_subpaquetes_por_paquete INT DEFAULT 10;
     DECLARE v_diferencia INT;
     
     SELECT paquetes_completos, subpaquetes_sueltos
@@ -773,9 +848,9 @@ BEGIN
     FROM inventario 
     WHERE producto_id = p_producto_id;
     
-    -- Calcular diferencia
-    SET v_diferencia = (p_paquetes_fisicos * 10 + p_subpaquetes_fisicos) - 
-                       (v_paquetes_actual * 10 + v_subpaquetes_actual);
+    -- Calcular diferencia (asumiendo 10 subpaquetes por paquete)
+    SET v_diferencia = (p_paquetes_fisicos * v_subpaquetes_por_paquete + p_subpaquetes_fisicos) - 
+                       (v_paquetes_actual * v_subpaquetes_por_paquete + v_subpaquetes_actual);
     
     -- Actualizar inventario
     UPDATE inventario 
@@ -808,6 +883,17 @@ END$$
 DELIMITER ;
 
 -- ====================================================
+-- ELIMINAR VISTAS EXISTENTES
+-- ====================================================
+DROP VIEW IF EXISTS vista_inventario_completo;
+DROP VIEW IF EXISTS vista_ventas_detalladas;
+DROP VIEW IF EXISTS vista_estado_cuentas;
+DROP VIEW IF EXISTS vista_proveedores_estado_cuentas;
+DROP VIEW IF EXISTS vista_gastos_varios;
+DROP VIEW IF EXISTS vista_caja_diaria;
+DROP VIEW IF EXISTS vista_inventario_bajo;
+
+-- ====================================================
 -- VISTAS PARA REPORTES
 -- ====================================================
 
@@ -821,7 +907,7 @@ SELECT
     i.paquetes_completos,
     i.subpaquetes_sueltos,
     i.subpaquetes_por_paquete,
-    i.total_subpaquetes,
+    (i.paquetes_completos * i.subpaquetes_por_paquete + i.subpaquetes_sueltos) as total_subpaquetes,
     p.precio_menor,
     p.precio_mayor,
     i.ubicacion,
@@ -867,7 +953,7 @@ SELECT
     cl.telefono,
     cl.saldo_actual as deuda_total,
     COUNT(cc.id) as ventas_pendientes,
-    SUM(cc.saldo_pendiente) as saldo_pendiente,
+    COALESCE(SUM(cc.saldo_pendiente), 0) as saldo_pendiente,
     cl.limite_credito,
     CASE 
         WHEN cl.saldo_actual > cl.limite_credito THEN 'EXCEDIDO'
@@ -884,7 +970,7 @@ ORDER BY cl.saldo_actual DESC;
 CREATE VIEW vista_proveedores_estado_cuentas AS
 SELECT 
     pe.codigo_proveedor as CODIGO,
-    pe.nombre_proveedor as 'NOMBRE DEL CLIENTE',
+    pe.nombre_proveedor as 'NOMBRE DEL PROVEEDOR',
     pe.ciudad_proveedor as CIUDAD,
     pe.compra as COMPRA,
     pe.a_cuenta as 'A CUENTA',
@@ -929,45 +1015,51 @@ SELECT
     p.codigo,
     p.nombre_color,
     pr.nombre as proveedor,
-    i.total_subpaquetes,
+    (i.paquetes_completos * i.subpaquetes_por_paquete + i.subpaquetes_sueltos) as total_subpaquetes,
     i.ubicacion,
     CASE 
-        WHEN i.total_subpaquetes < 50 THEN 'CRÍTICO'
-        WHEN i.total_subpaquetes < 100 THEN 'BAJO'
+        WHEN (i.paquetes_completos * i.subpaquetes_por_paquete + i.subpaquetes_sueltos) < 50 THEN 'CRÍTICO'
+        WHEN (i.paquetes_completos * i.subpaquetes_por_paquete + i.subpaquetes_sueltos) < 100 THEN 'BAJO'
         ELSE 'NORMAL'
     END as nivel_stock
 FROM productos p
 JOIN proveedores pr ON p.proveedor_id = pr.id
 JOIN inventario i ON p.id = i.producto_id
-WHERE i.total_subpaquetes < 100
-ORDER BY i.total_subpaquetes ASC;
+WHERE (i.paquetes_completos * i.subpaquetes_por_paquete + i.subpaquetes_sueltos) < 100
+ORDER BY (i.paquetes_completos * i.subpaquetes_por_paquete + i.subpaquetes_sueltos) ASC;
 
 -- ====================================================
 -- INSERCIONES INICIALES
 -- ====================================================
 
--- Insertar configuración inicial
+-- Insertar configuración inicial (solo si no existe)
 INSERT INTO sistema_config (empresa_nombre, telefono_empresa, direccion_empresa) 
-VALUES ('TIENDA DE LANAS', '12345678', 'Dirección Principal de la Tienda');
+SELECT 'TIENDA DE LANAS', '12345678', 'Dirección Principal de la Tienda'
+WHERE NOT EXISTS (SELECT 1 FROM sistema_config LIMIT 1);
 
 -- Insertar usuario administrador (password: admin123)
 INSERT INTO usuarios (codigo, nombre, usuario, password, rol, activo) 
-VALUES ('ADM001', 'Administrador Principal', 'admin', '$2y$10$YourHashedPasswordHere', 'administrador', 1);
+SELECT 'ADM001', 'Administrador Principal', 'admin', '$2y$10$YourHashedPasswordHere', 'administrador', 1
+WHERE NOT EXISTS (SELECT 1 FROM usuarios WHERE usuario = 'admin');
 
 -- Insertar usuario vendedor (password: vendedor123)
 INSERT INTO usuarios (codigo, nombre, usuario, password, rol, activo) 
-VALUES ('VEN001', 'Vendedor Principal', 'vendedor', '$2y$10$3jYk13goPJj.TP9ZaJ7ckOw/kPmvCajiTyJleeu6eyhDEZDdnE6ei', 'vendedor', 1);
+SELECT 'VEN001', 'Vendedor Principal', 'vendedor', '$2y$10$3jYk13goPJj.TP9ZaJ7ckOw/kPmvCajiTyJleeu6eyhDEZDdnE6ei', 'vendedor', 1
+WHERE NOT EXISTS (SELECT 1 FROM usuarios WHERE usuario = 'vendedor');
+
 -- ====================================================
 -- ÍNDICES ADICIONALES PARA OPTIMIZACIÓN
 -- ====================================================
 
-CREATE INDEX idx_productos_busqueda ON productos(codigo, nombre_color, activo);
-CREATE INDEX idx_clientes_busqueda ON clientes(codigo, nombre, activo);
-CREATE INDEX idx_ventas_busqueda_fecha ON ventas(fecha, cliente_id, vendedor_id);
-CREATE INDEX idx_inventario_stock ON inventario(paquetes_completos, subpaquetes_sueltos);
-CREATE INDEX idx_movimientos_caja_completo ON movimientos_caja(fecha, tipo, categoria, usuario_id);
-CREATE INDEX idx_productos_precios ON productos(precio_menor, precio_mayor);
-CREATE INDEX idx_ventas_codigo ON ventas(codigo_venta);
+-- Crear índices si no existen
+CREATE INDEX IF NOT EXISTS idx_productos_busqueda ON productos(codigo, nombre_color, activo);
+CREATE INDEX IF NOT EXISTS idx_clientes_busqueda ON clientes(codigo, nombre, activo);
+CREATE INDEX IF NOT EXISTS idx_ventas_busqueda_fecha ON ventas(fecha, cliente_id, vendedor_id);
+CREATE INDEX IF NOT EXISTS idx_inventario_stock ON inventario(paquetes_completos, subpaquetes_sueltos);
+CREATE INDEX IF NOT EXISTS idx_movimientos_caja_completo ON movimientos_caja(fecha, tipo, categoria, usuario_id);
+CREATE INDEX IF NOT EXISTS idx_productos_precios ON productos(precio_menor, precio_mayor);
+CREATE INDEX IF NOT EXISTS idx_ventas_codigo ON ventas(codigo_venta);
+
 
 
 

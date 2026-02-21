@@ -151,30 +151,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
             throw new Exception("Error al registrar en historial: " . $stmt_historial->error);
         }
         
-        // Actualizar saldo del proveedor si hay costo
-        if ($costo_paquete > 0 && $paquetes_completos > 0) {
-            $costo_total = $paquetes_completos * $costo_paquete;
-            
-            // Obtener proveedor_id del producto
-            $query_proveedor = "SELECT proveedor_id FROM productos WHERE id = ?";
-            $stmt_proveedor = $conn->prepare($query_proveedor);
-            $stmt_proveedor->bind_param("i", $producto_id);
-            $stmt_proveedor->execute();
-            $result_proveedor = $stmt_proveedor->get_result();
-            
-            if ($result_proveedor->num_rows > 0) {
-                $producto_data = $result_proveedor->fetch_assoc();
-                $proveedor_id = $producto_data['proveedor_id'];
-                
-                // Actualizar saldo del proveedor
-                $query_update_proveedor = "UPDATE proveedores 
-                                          SET saldo_actual = saldo_actual + ? 
-                                          WHERE id = ?";
-                $stmt_update_proveedor = $conn->prepare($query_update_proveedor);
-                $stmt_update_proveedor->bind_param("di", $costo_total, $proveedor_id);
-                $stmt_update_proveedor->execute();
-            }
-        }
+        // El saldo del proveedor por la compra de inventario lo gestiona el trigger
+        // `after_inventario_insert` / `after_inventario_update`. No necesitamos
+        // actualizarlo manualmente aquí.
         
         $conn->commit();
         $tipo_mensaje = "success";
@@ -672,13 +651,7 @@ $result_productos = $conn->query($query_productos);
                     </div>
                     <?php endif; ?>
                 </div>
-                <div class="card-footer bg-light">
-                    <div class="text-center">
-                        <a href="historial_inventario.php?tipo=ingreso" class="btn btn-sm btn-outline-info">
-                            <i class="fas fa-list me-1"></i>Ver Historial Completo
-                        </a>
-                    </div>
-                </div>
+
             </div>
         </div>
     </div>

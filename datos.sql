@@ -1,5 +1,5 @@
 -- ====================================================
--- INSERTS PARA PROVEEDORES (sin cambios en fechas)
+-- INSERTS PARA PROVEEDORES
 -- ====================================================
 INSERT INTO proveedores (codigo, nombre, ciudad, telefono, email, credito_limite, saldo_actual, activo, observaciones) VALUES
 ('PROV001', 'Lanas del Sur', 'La Paz', '2-2221111', 'ventas@lanasdelsur.bo', 25000.00, 8500.50, 1, 'Proveedor principal - Lanas acrílicas'),
@@ -10,7 +10,7 @@ INSERT INTO proveedores (codigo, nombre, ciudad, telefono, email, credito_limite
 ('PROV006', 'Andean Textiles', 'Oruro', '5-7776666', 'export@andeantextiles.bo', 28000.00, 9800.30, 1, 'Exportación de textiles');
 
 -- ====================================================
--- INSERTS PARA CATEGORIAS (sin cambios)
+-- INSERTS PARA CATEGORIAS 
 -- ====================================================
 INSERT INTO categorias (proveedor_id, nombre, subpaquetes_por_paquete, descripcion, activo) VALUES
 (1, 'Lana Acrílica Fina', 10, 'Lana acrílica para todo tipo de tejido - Grosor fino', 1),
@@ -27,7 +27,7 @@ INSERT INTO categorias (proveedor_id, nombre, subpaquetes_por_paquete, descripci
 (6, 'Lana Orgánica', 8, 'Certificación orgánica', 1);
 
 -- ====================================================
--- INSERTS PARA PRODUCTOS (sin cambios)
+-- INSERTS PARA PRODUCTOS 
 -- ====================================================
 INSERT INTO productos (codigo, nombre_color, proveedor_id, categoria_id, precio_menor, precio_mayor, activo, tiene_stock) VALUES
 -- Lanas del Sur - Acrílica Fina
@@ -86,7 +86,7 @@ INSERT INTO productos (codigo, nombre_color, proveedor_id, categoria_id, precio_
 ('AT-023', 'Terracota', 6, 12, 45.00, 41.00, 1, 1);
 
 -- ====================================================
--- INSERTS PARA INVENTARIO (fechas ajustadas a febrero 2026)
+-- INSERTS PARA INVENTARIO 
 -- ====================================================
 INSERT INTO inventario (producto_id, paquetes_completos, subpaquetes_sueltos, subpaquetes_por_paquete, costo_paquete, ubicacion, fecha_ultimo_ingreso, usuario_registro, observaciones) VALUES
 (1, 25, 3, 10, 45.00, 'A-01', '2026-02-01', 1, 'Inventario inicial mes'),
@@ -133,7 +133,7 @@ INSERT INTO inventario (producto_id, paquetes_completos, subpaquetes_sueltos, su
 (42, 3, 4, 8, 310.00, 'G-02', '2026-02-07', 1, 'Orgánica');
 
 -- ====================================================
--- INSERTS PARA CLIENTES (sin cambios en fechas)
+-- INSERTS PARA CLIENTES 
 -- ====================================================
 INSERT INTO clientes (codigo, nombre, ciudad, telefono, tipo_documento, numero_documento, limite_credito, saldo_actual, total_comprado, compras_realizadas, activo, observaciones) VALUES
 ('CLI001', 'Tejidos María', 'La Paz', '2-7112233', 'DNI', '45678912', 5000.00, 850.00, 12500.50, 15, 1, 'Cliente frecuente - Tienda de tejidos'),
@@ -153,7 +153,7 @@ INSERT INTO clientes (codigo, nombre, ciudad, telefono, tipo_documento, numero_d
 ('CLI015', 'Boutique de Lanas', 'Santa Cruz', '3-4996677', 'NIT', '9012345678', 5500.00, 1200.00, 8900.50, 14, 1, 'Boutique especializada');
 
 -- ====================================================
--- INSERTS PARA OTROS_PRODUCTOS (sin cambios)
+-- INSERTS PARA OTROS_PRODUCTOS 
 -- ====================================================
 INSERT INTO otros_productos (codigo, nombre, categoria, unidad, precio_compra, precio_venta, stock, stock_minimo, activo, observaciones) VALUES
 ('AGUJAS-001', 'Agujas de Tejer N° 3', 'Accesorios', 'unidad', 3.50, 8.00, 45, 20, 1, 'Agujas rectas'),
@@ -178,7 +178,7 @@ INSERT INTO otros_productos (codigo, nombre, categoria, unidad, precio_compra, p
 ('PATRONES-002', 'Libro Tejido Básico', 'Material', 'unidad', 25.00, 45.00, 15, 8, 1, 'Libro de instrucciones');
 
 -- ====================================================
--- INSERTS PARA VENTAS (FEBRERO 2026)
+-- INSERTS PARA VENTAS 
 -- ====================================================
 INSERT INTO ventas (codigo_venta, cliente_id, cliente_contado, vendedor_id, tipo_venta, tipo_pago, subtotal, descuento, total, pago_inicial, metodo_pago_inicial, referencia_pago_inicial, es_venta_rapida, estado, fecha, hora_inicio, hora_fin, impreso, anulado, observaciones) VALUES
 -- SEMANA 1: 1-7 FEBRERO
@@ -246,7 +246,7 @@ INSERT INTO ventas (codigo_venta, cliente_id, cliente_contado, vendedor_id, tipo
 ('VTA-20260228-0002', 4, NULL, 2, 'mayor', 'credito', 680.00, 15.00, 665.00, 250.00, 'efectivo', NULL, 0, 'pendiente', '2026-02-28', '15:30:00', '15:50:00', 1, 0, 'Lanas y Puntos - Cierre mes');
 
 -- ====================================================
--- INSERTS PARA VENTA_DETALLES (FEBRERO 2026)
+-- INSERTS PARA VENTA_DETALLES 
 -- ====================================================
 INSERT INTO venta_detalles (venta_id, producto_id, cantidad_subpaquetes, precio_unitario, subtotal, hora_extraccion, usuario_extraccion) VALUES
 -- VTA-20260201-0001
@@ -444,7 +444,7 @@ INSERT INTO venta_detalles (venta_id, producto_id, cantidad_subpaquetes, precio_
 (56, 24, 8, 13.00, 104.00, '15:40:00', 2);
 
 -- ====================================================
--- INSERTS PARA CLIENTES_CUENTAS_COBRAR (FEBRERO 2026)
+-- INSERTS PARA CLIENTES_CUENTAS_COBRAR 
 -- ====================================================
 INSERT INTO clientes_cuentas_cobrar (cliente_id, venta_id, monto_total, saldo_pendiente, fecha_vencimiento, estado, usuario_registro, observaciones) VALUES
 (1, 1, 1225.00, 725.00, '2026-03-01', 'pendiente', 2, 'Saldo pendiente - Tejidos María'),
@@ -477,7 +477,7 @@ INSERT INTO clientes_cuentas_cobrar (cliente_id, venta_id, monto_total, saldo_pe
 (4, 56, 665.00, 415.00, '2026-03-28', 'pendiente', 2, 'Lanas y Puntos - Cierre mes');
 
 -- ====================================================
--- INSERTS PARA PAGOS_CLIENTES (FEBRERO 2026 - ABONOS)
+-- INSERTS PARA PAGOS_CLIENTES 
 -- ====================================================
 INSERT INTO pagos_clientes (tipo, cliente_id, venta_id, monto, metodo_pago, referencia, fecha, hora, usuario_id, observaciones) VALUES
 ('abono', 1, 1, 200.00, 'efectivo', NULL, '2026-02-05', '10:30:00', 2, 'Abono Tejidos María'),
@@ -506,7 +506,7 @@ INSERT INTO pagos_clientes (tipo, cliente_id, venta_id, monto, metodo_pago, refe
 ('abono', 4, 56, 100.00, 'efectivo', NULL, '2026-02-28', '16:00:00', 2, 'Abono Lanas y Puntos');
 
 -- ====================================================
--- INSERTS PARA VENTA_OTROS_PRODUCTOS (FEBRERO 2026)
+-- INSERTS PARA VENTA_OTROS_PRODUCTOS 
 -- ====================================================
 INSERT INTO venta_otros_productos (venta_id, producto_id, cantidad, precio_unitario, subtotal) VALUES
 (3, 1, 2, 8.00, 16.00),
@@ -538,7 +538,7 @@ INSERT INTO venta_otros_productos (venta_id, producto_id, cantidad, precio_unita
 (55, 10, 4, 15.00, 60.00);
 
 -- ====================================================
--- INSERTS PARA MOVIMIENTOS_CAJA (FEBRERO 2026)
+-- INSERTS PARA MOVIMIENTOS_CAJA 
 -- ====================================================
 INSERT INTO movimientos_caja (tipo, categoria, monto, descripcion, referencia_venta, fecha, hora, usuario_id, observaciones) VALUES
 -- Ingresos por ventas y pagos
@@ -596,7 +596,7 @@ INSERT INTO movimientos_caja (tipo, categoria, monto, descripcion, referencia_ve
 ('gasto', 'gasto_varios', 38.00, 'Refrigerios', NULL, '2026-02-28', '15:45:00', 1, 'Personal');
 
 -- ====================================================
--- INSERTS PARA PAGOS_PROVEEDORES (FEBRERO 2026)
+-- INSERTS PARA PAGOS_PROVEEDORES 
 -- ====================================================
 INSERT INTO pagos_proveedores (proveedor_id, monto, metodo_pago, referencia, fecha, usuario_id, observaciones) VALUES
 (1, 3000.00, 'transferencia', 'PAG-001-02-26', '2026-02-05', 1, 'Pago parcial Lanas del Sur'),
@@ -610,7 +610,7 @@ INSERT INTO pagos_proveedores (proveedor_id, monto, metodo_pago, referencia, fec
 (3, 1500.00, 'QR', 'QR-PROV-02-26-B', '2026-02-25', 1, 'Pago Hilos y Colores');
 
 -- ====================================================
--- INSERTS PARA HISTORIAL_INVENTARIO (FEBRERO 2026)
+-- INSERTS PARA HISTORIAL_INVENTARIO 
 -- ====================================================
 INSERT INTO historial_inventario (producto_id, tipo_movimiento, paquetes_anteriores, subpaquetes_anteriores, paquetes_nuevos, subpaquetes_nuevos, diferencia, referencia, fecha_hora, usuario_id, observaciones) VALUES
 (1, 'venta', 25, 3, 20, 3, -50, 'VENTA-1', '2026-02-01 09:35:00', 2, 'Venta 50 subpaquetes'),
@@ -652,7 +652,7 @@ INSERT INTO historial_inventario (producto_id, tipo_movimiento, paquetes_anterio
 (22, 'venta', 13, 4, 10, 4, -25, 'VENTA-56', '2026-02-28 15:35:00', 2, 'Venta 25 subpaquetes');
 
 -- ====================================================
--- INSERTS PARA PROVEEDORES_ESTADO_CUENTAS (FEBRERO 2026)
+-- INSERTS PARA PROVEEDORES_ESTADO_CUENTAS 
 -- ====================================================
 INSERT INTO proveedores_estado_cuentas (proveedor_id, codigo_proveedor, nombre_proveedor, ciudad_proveedor, compra, a_cuenta, adelanto, saldo, fecha, descripcion, usuario_id) VALUES
 (1, 'PROV001', 'Lanas del Sur', 'La Paz', 3000.00, 3000.00, 0.00, 11500.50, '2026-02-01', 'Compra inicial mes', 1),

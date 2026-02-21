@@ -78,55 +78,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 throw new Exception("Error al registrar pago: " . $stmt_pago->error);
             }
             
-            // 2. Registrar movimiento en proveedores_estado_cuentas
-            // Obtener el último saldo
-            $query_ultimo_saldo = "SELECT saldo FROM proveedores_estado_cuentas 
-                                  WHERE proveedor_id = ? 
-                                  ORDER BY fecha DESC, creado_en DESC 
-                                  LIMIT 1";
-            $stmt_ultimo_saldo = $conn->prepare($query_ultimo_saldo);
-            $stmt_ultimo_saldo->bind_param("i", $proveedor_id);
-            $stmt_ultimo_saldo->execute();
-            $result_ultimo_saldo = $stmt_ultimo_saldo->get_result();
-            
-            $ultimo_saldo = 0;
-            if ($result_ultimo_saldo->num_rows > 0) {
-                $row = $result_ultimo_saldo->fetch_assoc();
-                $ultimo_saldo = floatval($row['saldo']);
-            }
-            
-            $nuevo_saldo = $ultimo_saldo - $monto;
-            
-            $query_movimiento = "INSERT INTO proveedores_estado_cuentas 
-                                (proveedor_id, codigo_proveedor, nombre_proveedor, 
-                                 ciudad_proveedor, adelanto, saldo, fecha, descripcion, 
-                                 referencia, usuario_id)
-                                SELECT p.id, p.codigo, p.nombre, p.ciudad, ?, ?, CURDATE(),
-                                       ?, ?, ?
-                                FROM proveedores p
-                                WHERE p.id = ?";
-            $descripcion = "Pago a proveedor - " . $proveedor['codigo'] . " - " . $proveedor['nombre'];
-            $stmt_movimiento = $conn->prepare($query_movimiento);
-            $stmt_movimiento->bind_param("ddssii", $monto, $nuevo_saldo, $descripcion, 
-                                        $referencia, $_SESSION['usuario_id'], $proveedor_id);
-            
-            if (!$stmt_movimiento->execute()) {
-                throw new Exception("Error al registrar movimiento en estado de cuenta");
-            }
-            
-            // 3. Actualizar saldo del proveedor
-            $query_actualizar_saldo = "UPDATE proveedores SET saldo_actual = saldo_actual - ? WHERE id = ?";
-            $stmt_actualizar = $conn->prepare($query_actualizar_saldo);
-            $stmt_actualizar->bind_param("di", $monto, $proveedor_id);
-            
-            if (!$stmt_actualizar->execute()) {
-                throw new Exception("Error al actualizar saldo del proveedor");
-            }
-            
-            // 4. Registrar movimiento de caja
-            registrarMovimientoCaja('gasto', 'pago_proveedor', $monto, 
-                                  $descripcion, $_SESSION['usuario_id'], 
-                                  "Pago proveedor: " . $proveedor['codigo']);
+            // Las actualizaciones de saldo, movimientos de cuenta y registro en caja
+            // están cubiertas por el trigger after_pago_proveedor_insert en la base
+            // de datos. No duplicamos la lógica aquí.
             
             $conn->commit();
             
@@ -268,7 +222,7 @@ $result_proveedores = $conn->query($query_proveedores);
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label">Monto del Pago (Bs) *</label>
+                        <label class="form-label">A cuenta (Bs) *</label>
                         <div class="input-group">
                             <span class="input-group-text">Bs.</span>
                             <input type="number" class="form-control" name="monto" 
@@ -356,7 +310,7 @@ $result_proveedores = $conn->query($query_proveedores);
                     <div class="col-md-6">
                         <div class="card bg-light">
                             <div class="card-body text-center">
-                                <h6 class="text-muted">Saldo Actual</h6>
+                                <h6 class="text-muted">Saldo (Deuda)</h6>
                                 <h3 class="text-danger fw-bold">
                                     <?php echo formatearMoneda($proveedor_info['saldo_actual']); ?>
                                 </h3>

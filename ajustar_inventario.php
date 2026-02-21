@@ -793,11 +793,11 @@ if (!$stats_ajustes['total_ajustes']) {
                     </div>
                     <?php endif; ?>
                 </div>
-                <div class="card-footer bg-light text-center py-2">
+                <!--<div class="card-footer bg-light text-center py-2">
                     <a href="historial_inventario.php?tipo=ajuste" class="btn btn-sm btn-outline-primary">
                         <i class="fas fa-list me-1"></i>Ver Historial Completo
                     </a>
-                </div>
+                </div>-->
             </div>
         </div>
         

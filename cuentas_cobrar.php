@@ -24,6 +24,33 @@ $tipo_mensaje = '';
 $cliente_id = isset($_GET['cliente_id']) ? intval($_GET['cliente_id']) : null;
 $mostrar_modal_abono = false;
 
+// búsqueda y paginación en lista de clientes con deuda
+$search = limpiar($_GET['search'] ?? '');
+$page = max(1, intval($_GET['page'] ?? 1));
+$perPage = 20;
+
+$whereClientes = "c.saldo_actual > 0 AND c.activo = 1";
+$paramsClientes = [];
+$typesClientes = "";
+
+if ($search !== '') {
+    $whereClientes .= " AND (c.codigo LIKE ? OR c.nombre LIKE ? OR c.telefono LIKE ? )";
+    $like = "%$search%";
+    $paramsClientes = [$like, $like, $like];
+    $typesClientes = "sss";
+}
+
+// contar totales filtrados
+$count_query = "SELECT COUNT(*) as total FROM clientes c WHERE $whereClientes";
+$stmt_count = $conn->prepare($count_query);
+if (!empty($paramsClientes)) {
+    $stmt_count->bind_param($typesClientes, ...$paramsClientes);
+}
+$stmt_count->execute();
+$total_clientes_filtrados = $stmt_count->get_result()->fetch_assoc()['total'];
+
+$offset = ($page - 1) * $perPage;
+
 // Procesar abono
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'abonar') {
     try {
@@ -162,17 +189,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
     }
 }
 
-// Obtener clientes con deuda (corregida según estructura de BD)
+// Obtener clientes con deuda (aplicando filtros/paginación)
 $query_clientes_deuda = "SELECT c.id, c.codigo, c.nombre, c.telefono, 
                         c.limite_credito, c.saldo_actual,
                         COUNT(DISTINCT v.id) as ventas_pendientes,
                         COALESCE(SUM(v.debe), 0) as total_debe
                         FROM clientes c
                         LEFT JOIN ventas v ON c.id = v.cliente_id AND v.estado = 'pendiente' AND v.anulado = 0
-                        WHERE c.saldo_actual > 0 AND c.activo = 1
+                        WHERE $whereClientes
                         GROUP BY c.id
-                        ORDER BY c.saldo_actual DESC";
-$result_clientes_deuda = $conn->query($query_clientes_deuda);
+                        ORDER BY c.saldo_actual DESC
+                        LIMIT ?, ?";
+$stmt_clientes = $conn->prepare($query_clientes_deuda);
+if (!empty($paramsClientes)) {
+    $bindTypes = $typesClientes . "ii";
+    $allParams = array_merge($paramsClientes, [$offset, $perPage]);
+    $stmt_clientes->bind_param($bindTypes, ...$allParams);
+} else {
+    $stmt_clientes->bind_param("ii", $offset, $perPage);
+}
+$stmt_clientes->execute();
+$result_clientes_deuda = $stmt_clientes->get_result();
 
 // Verificar error en consulta
 if (!$result_clientes_deuda) {
@@ -230,27 +267,31 @@ if ($cliente_id) {
                 <h5 class="mb-0">Clientes con Deuda Pendiente</h5>
                 <div>
                     <span class="badge bg-danger me-2">
-                        <?php echo $result_clientes_deuda->num_rows; ?> clientes
+                        <?php echo $total_clientes_filtrados; ?> clientes
                     </span>
                     <button class="btn btn-sm btn-outline-primary" onclick="exportarReporteDeudas()">
-                        <i class="fas fa-file-excel"></i>
+                        <i class="fas fa-file-excel"></i> Exportar Excel
                     </button>
                 </div>
             </div>
             <div class="card-body">
-                <!-- Buscador -->
-                <div class="mb-3">
+                <!-- Buscador (envía mediante GET) -->
+                <form method="GET" class="mb-3">
+                    <?php if ($cliente_id): ?>
+                        <input type="hidden" name="cliente_id" value="<?php echo $cliente_id; ?>">
+                    <?php endif; ?>
                     <div class="input-group">
                         <span class="input-group-text">
                             <i class="fas fa-search"></i>
                         </span>
-                        <input type="text" class="form-control" id="buscarClienteDeuda" 
+                        <input type="text" name="search" class="form-control" id="buscarClienteDeuda"
+                               value="<?php echo htmlspecialchars($search); ?>"
                                placeholder="Buscar por código, nombre o teléfono...">
-                        <button class="btn btn-outline-secondary" type="button" onclick="limpiarBusqueda()">
-                            <i class="fas fa-times"></i>
+                        <button class="btn btn-outline-secondary" type="submit">
+                            <i class="fas fa-search"></i>
                         </button>
                     </div>
-                </div>
+                </form>
                 
                 <div class="table-responsive">
                     <table class="table table-hover table-sm" id="tablaClientesDeuda">
@@ -352,18 +393,6 @@ if ($cliente_id) {
                                                title="Ver detalles">
                                                 <i class="fas fa-eye"></i>
                                             </a>
-                                            <button class="btn btn-outline-success"
-                                                    data-bs-toggle="modal" 
-                                                    data-bs-target="#modalRegistrarAbono"
-                                                    onclick="cargarClienteAbono(<?php echo htmlspecialchars(json_encode($cliente)); ?>)"
-                                                    title="Registrar abono">
-                                                <i class="fas fa-money-bill-wave"></i>
-                                            </button>
-                                            <a href="historial_cliente.php?id=<?php echo $cliente['id']; ?>" 
-                                               class="btn btn-outline-info"
-                                               title="Ver historial">
-                                                <i class="fas fa-history"></i>
-                                            </a>
                                         </div>
                                     </td>
                                 </tr>
@@ -396,6 +425,25 @@ if ($cliente_id) {
                         </tfoot>
                         <?php endif; ?>
                     </table>
+                    <?php if (isset($total_clientes_filtrados) && $total_clientes_filtrados > $perPage): ?>
+                    <nav>
+                        <ul class="pagination justify-content-center">
+                            <?php
+                            $pages = ceil($total_clientes_filtrados / $perPage);
+                            for ($p = 1; $p <= $pages; $p++):
+                                $active = $p == $page ? ' active' : '';
+                                $params = http_build_query([
+                                    'search' => $search,
+                                    'page' => $p
+                                ] + ($cliente_id ? ['cliente_id'=>$cliente_id] : []));
+                            ?>
+                            <li class="page-item<?php echo $active; ?>">
+                                <a class="page-link" href="?<?php echo $params; ?>"><?php echo $p; ?></a>
+                            </li>
+                            <?php endfor; ?>
+                        </ul>
+                    </nav>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -425,7 +473,7 @@ if ($cliente_id) {
             <div class="card-body">
                 <!-- Resumen del cliente -->
                 <div class="row mb-4">
-                    <div class="col-md-6 mb-3">
+                    <div class="col-md-12 mb-3">
                         <div class="card bg-light">
                             <div class="card-body p-3">
                                 <h6>Resumen de Deuda</h6>
@@ -446,25 +494,7 @@ if ($cliente_id) {
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-6 mb-3">
-                        <div class="card bg-light">
-                            <div class="card-body p-3">
-                                <h6>Acciones</h6>
-                                <div class="d-grid gap-2">
-                                    <button class="btn btn-success" 
-                                            data-bs-toggle="modal" 
-                                            data-bs-target="#modalRegistrarAbono"
-                                            onclick="cargarClienteAbono(<?php echo htmlspecialchars(json_encode($cliente_info)); ?>)">
-                                        <i class="fas fa-money-bill-wave me-2"></i>Registrar Abono
-                                    </button>
-                                    <a href="historial_cliente.php?id=<?php echo $cliente_id; ?>" 
-                                       class="btn btn-outline-primary">
-                                        <i class="fas fa-history me-2"></i>Ver Historial
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+
                 </div>
                 
                 <!-- Tabla de deudas detalladas -->
@@ -481,11 +511,11 @@ if ($cliente_id) {
                         <table class="table table-sm table-hover">
                             <thead>
                                 <tr>
-                                    <th>Venta</th>
+                                    <th>Venta (Código)</th>
                                     <th>Fecha</th>
-                                    <th class="text-end">Monto Total</th>
-                                    <th class="text-end">Abonos</th>
-                                    <th class="text-end">Saldo Pendiente</th>
+                                    <th class="text-end">Total (Venta)</th>
+                                    <th class="text-end">Pagado (A Cuenta)</th>
+                                    <th class="text-end">Debe (Saldo)</th>
                                     <th>Acción</th>
                                 </tr>
                             </thead>
@@ -628,14 +658,14 @@ if ($cliente_id) {
                     
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Saldo Pendiente</label>
+                            <label class="form-label">Debe </label>
                             <div class="input-group">
                                 <span class="input-group-text">Bs.</span>
                                 <input type="text" class="form-control" id="abonoSaldoPendiente" readonly>
                             </div>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Monto a Abonar (Bs) *</label>
+                            <label class="form-label">A cuenta (Bs) *</label>
                             <div class="input-group">
                                 <span class="input-group-text">Bs.</span>
                                 <input type="number" class="form-control" name="monto" 
@@ -842,51 +872,8 @@ document.getElementById('formRegistrarAbono').addEventListener('submit', functio
 });
 
 // Buscar en la tabla
-function buscarClientesDeuda() {
-    var input = document.getElementById('buscarClienteDeuda');
-    var filter = input.value.toUpperCase();
-    var table = document.getElementById('tablaClientesDeuda');
-    var tr = table.getElementsByTagName('tr');
-    var visibleCount = 0;
-    
-    for (var i = 1; i < tr.length; i++) {
-        var mostrar = false;
-        var tds = tr[i].getElementsByTagName('td');
-        
-        for (var j = 0; j < tds.length; j++) {
-            if (tds[j]) {
-                var txtValue = tds[j].textContent || tds[j].innerText;
-                if (txtValue.toUpperCase().indexOf(filter) > -1) {
-                    mostrar = true;
-                    break;
-                }
-            }
-        }
-        
-        if (mostrar) {
-            tr[i].style.display = '';
-            visibleCount++;
-        } else {
-            tr[i].style.display = 'none';
-        }
-    }
-    
-    // Actualizar contador
-    var counterBadge = document.querySelector('.card-header .badge.bg-danger');
-    if (counterBadge) {
-        counterBadge.textContent = visibleCount + ' clientes';
-    }
-}
-
-// Configurar buscador
-document.getElementById('buscarClienteDeuda').addEventListener('keyup', buscarClientesDeuda);
-
-// Limpiar búsqueda
-function limpiarBusqueda() {
-    document.getElementById('buscarClienteDeuda').value = '';
-    buscarClientesDeuda();
-}
-
+// El filtrado de clientes con deuda ahora se realiza en el servidor mediante
+// parámetros GET. Ya no se necesita código JavaScript para recorrer la tabla.
 // Exportar reporte a Excel
 function exportarReporteDeudas() {
     var html = '<!DOCTYPE html><html><head><meta charset="UTF-8">';

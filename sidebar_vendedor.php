@@ -35,10 +35,10 @@
         </a>
     </li>
     <li>
-        <a href="registrar_abono.php" class="nav-link <?php echo $current_page == 'registrar_abono.php' ? 'active' : ''; ?>">
+        <!--<a href="registrar_abono.php" class="nav-link <?php echo $current_page == 'registrar_abono.php' ? 'active' : ''; ?>">
             <i class="fas fa-money-bill-wave"></i>
             <span>Registrar Abono</span>
-        </a>
+        </a>-->
     </li>
     
     <li class="nav-section">

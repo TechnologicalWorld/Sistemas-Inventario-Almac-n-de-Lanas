@@ -320,7 +320,7 @@ $result = $conn->query($query);
                                 <th width="120">Ciudad</th>
                                 <th width="120">Teléfono</th>
                                 <th width="140">Límite Crédito</th>
-                                <th width="160">Saldo Actual</th>
+                                <th width="160">Debe</th>
                                 <th width="100">Estado</th>
                                 <th width="120">Registro</th>
                                 <th width="180" class="text-center">Acciones</th>
@@ -476,9 +476,6 @@ $result = $conn->query($query);
                                             Mostrando <?php echo $result->num_rows; ?> proveedores
                                         </div>
                                         <div class="text-end">
-                                            <button class="btn btn-sm btn-outline-secondary" onclick="exportarTabla()">
-                                                <i class="fas fa-file-excel me-1"></i>Exportar
-                                            </button>
                                             <button class="btn btn-sm btn-outline-secondary ms-1" onclick="imprimirTabla()">
                                                 <i class="fas fa-print me-1"></i>Imprimir
                                             </button>
@@ -698,7 +695,7 @@ $result = $conn->query($query);
                             </div>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Saldo Actual</label>
+                            <label class="form-label">Debe</label>
                             <div class="input-group">
                                 <span class="input-group-text">
                                     <i class="fas fa-money-bill-wave"></i>

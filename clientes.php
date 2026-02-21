@@ -16,6 +16,40 @@ verificarSesion();
 $mensaje = '';
 $tipo_mensaje = '';
 
+// Parámetros de búsqueda
+$search = limpiar($_GET['search'] ?? '');
+$filtroEstado = limpiar($_GET['filter'] ?? '');
+
+// Construir cláusulas WHERE dinámicas
+$where = "1=1";
+$params = [];
+$types = "";
+
+if ($search !== '') {
+    $where .= " AND (codigo LIKE ? OR nombre LIKE ? OR ciudad LIKE ? OR telefono LIKE ? OR numero_documento LIKE ?)";
+    $like = "%$search%";
+    $params = array_merge($params, [$like, $like, $like, $like, $like]);
+    $types .= str_repeat('s', 5);
+}
+
+switch ($filtroEstado) {
+    case 'activo':
+        $where .= " AND activo = 1";
+        break;
+    case 'inactivo':
+        $where .= " AND activo = 0";
+        break;
+    case 'con_deuda':
+        $where .= " AND saldo_actual > 0";
+        break;
+    case 'sin_deuda':
+        $where .= " AND saldo_actual <= 0";
+        break;
+    case 'limite_excedido':
+        $where .= " AND saldo_actual > limite_credito AND limite_credito > 0";
+        break;
+}
+
 // Procesar acciones
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $action = $_POST['action'] ?? '';
@@ -31,7 +65,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $limite_credito = floatval($_POST['limite_credito']);
             $observaciones = limpiar($_POST['observaciones']);
             
-            // Validar datos
             if (empty($codigo) || empty($nombre)) {
                 $mensaje = "El código y nombre son obligatorios";
                 $tipo_mensaje = "danger";
@@ -43,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $stmt_check->execute();
                 
                 if ($stmt_check->get_result()->num_rows > 0) {
-                    $mensaje = " El código de cliente ya existe";
+                    $mensaje = "El código de cliente ya existe";
                     $tipo_mensaje = "danger";
                 } else {
                     $query = "INSERT INTO clientes 
@@ -55,10 +88,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                      $tipo_documento, $numero_documento, $limite_credito, $observaciones);
                     
                     if ($stmt->execute()) {
-                        $mensaje = " Cliente creado exitosamente";
+                        $mensaje = "Cliente creado exitosamente";
                         $tipo_mensaje = "success";
                     } else {
-                        $mensaje = " Error al crear cliente: " . $stmt->error;
+                        $mensaje = "Error al crear cliente: " . $stmt->error;
                         $tipo_mensaje = "danger";
                     }
                 }
@@ -88,7 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $stmt_check->execute();
                 
                 if ($stmt_check->get_result()->num_rows > 0) {
-                    $mensaje = " El código de cliente ya está en uso por otro cliente";
+                    $mensaje = "El código de cliente ya está en uso por otro cliente";
                     $tipo_mensaje = "danger";
                 } else {
                     $query = "UPDATE clientes SET 
@@ -97,15 +130,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                              limite_credito = ?, activo = ?, observaciones = ?
                              WHERE id = ?";
                     $stmt = $conn->prepare($query);
-                    $stmt->bind_param("ssssssdisi", $codigo, $nombre, $ciudad, $telefono, 
+                    $stmt->bind_param("ssssssdiss", $codigo, $nombre, $ciudad, $telefono, 
                                      $tipo_documento, $numero_documento, $limite_credito, 
                                      $activo, $observaciones, $id);
                     
                     if ($stmt->execute()) {
-                        $mensaje = " Cliente actualizado exitosamente";
+                        $mensaje = "Cliente actualizado exitosamente";
                         $tipo_mensaje = "success";
                     } else {
-                        $mensaje = " Error al actualizar cliente: " . $stmt->error;
+                        $mensaje = "Error al actualizar cliente: " . $stmt->error;
                         $tipo_mensaje = "danger";
                     }
                 }
@@ -121,24 +154,63 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $stmt->bind_param("ii", $activo, $id);
             
             if ($stmt->execute()) {
-                $mensaje = " Estado del cliente actualizado";
+                $mensaje = "Estado del cliente actualizado";
                 $tipo_mensaje = "success";
             } else {
-                $mensaje = " Error al cambiar estado: " . $stmt->error;
+                $mensaje = "Error al cambiar estado: " . $stmt->error;
                 $tipo_mensaje = "danger";
+            }
+            break;
+            
+        case 'activar_lote':
+            $ids = json_decode($_POST['ids'] ?? '[]', true);
+            if (!empty($ids)) {
+                $placeholders = implode(',', array_fill(0, count($ids), '?'));
+                $query = "UPDATE clientes SET activo = 1 WHERE id IN ($placeholders)";
+                $stmt = $conn->prepare($query);
+                $types = str_repeat('i', count($ids));
+                $stmt->bind_param($types, ...$ids);
+                $stmt->execute();
+                $mensaje = "Clientes activados exitosamente";
+                $tipo_mensaje = "success";
+            }
+            break;
+            
+        case 'desactivar_lote':
+            $ids = json_decode($_POST['ids'] ?? '[]', true);
+            if (!empty($ids)) {
+                $placeholders = implode(',', array_fill(0, count($ids), '?'));
+                $query = "UPDATE clientes SET activo = 0 WHERE id IN ($placeholders)";
+                $stmt = $conn->prepare($query);
+                $types = str_repeat('i', count($ids));
+                $stmt->bind_param($types, ...$ids);
+                $stmt->execute();
+                $mensaje = "Clientes desactivados exitosamente";
+                $tipo_mensaje = "success";
             }
             break;
     }
 }
 
-// Obtener lista de clientes
+// Obtener lista de clientes (SIN PAGINACIÓN - todos los registros)
 $query_clientes = "SELECT id, codigo, nombre, ciudad, telefono, tipo_documento,
                   numero_documento, limite_credito, saldo_actual, total_comprado,
                   compras_realizadas, activo, observaciones,
                   DATE_FORMAT(fecha_registro, '%d/%m/%Y') as fecha_registro
-                  FROM clientes 
+                  FROM clientes
+                  WHERE $where
                   ORDER BY nombre";
-$result_clientes = $conn->query($query_clientes);
+
+if (!empty($params)) {
+    $stmt = $conn->prepare($query_clientes);
+    $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    $result_clientes = $stmt->get_result();
+} else {
+    $result_clientes = $conn->query($query_clientes);
+}
+
+$total_clientes_filtrados = $result_clientes->num_rows;
 
 // Estadísticas para dashboard
 $query_total = "SELECT COUNT(*) as total FROM clientes";
@@ -275,8 +347,8 @@ $clientes_con_deuda = $result_con_deuda->fetch_assoc()['total'];
                     </div>
                 </div>
                 
-                <!-- Filtros y búsqueda mejorados -->
-                <div class="card border-light mb-4">
+                <!-- Filtros y búsqueda -->
+                <form method="GET" class="card border-light mb-4">
                     <div class="card-body">
                         <div class="row g-3">
                             <div class="col-lg-5">
@@ -284,54 +356,59 @@ $clientes_con_deuda = $result_con_deuda->fetch_assoc()['total'];
                                     <span class="input-group-text bg-primary text-white">
                                         <i class="fas fa-search"></i>
                                     </span>
-                                    <input type="text" class="form-control" id="buscarCliente" 
+                                    <input type="text" name="search" class="form-control" id="buscarCliente"
+                                           value="<?php echo htmlspecialchars($search); ?>"
                                            placeholder="Buscar por código, nombre, teléfono, ciudad...">
-                                    <button class="btn btn-outline-secondary" type="button" onclick="limpiarBusqueda()">
-                                        <i class="fas fa-times"></i>
+                                    <button class="btn btn-outline-primary" type="submit">
+                                        <i class="fas fa-search"></i>
                                     </button>
                                 </div>
                             </div>
                             <div class="col-lg-3">
-                                <select class="form-select" id="filtroEstado">
-                                    <option value="">Todos los estados</option>
-                                    <option value="activo">Clientes Activos</option>
-                                    <option value="inactivo">Clientes Inactivos</option>
-                                    <option value="con_deuda">Con Deuda</option>
-                                    <option value="sin_deuda">Sin Deuda</option>
-                                    <option value="limite_excedido">Límite Excedido</option>
+                                <select class="form-select" name="filter" id="filtroEstado">
+                                    <option value=""<?php echo $filtroEstado == '' ? ' selected' : ''; ?>>Todos los estados</option>
+                                    <option value="activo"<?php echo $filtroEstado == 'activo' ? ' selected' : ''; ?>>Clientes Activos</option>
+                                    <option value="inactivo"<?php echo $filtroEstado == 'inactivo' ? ' selected' : ''; ?>>Clientes Inactivos</option>
+                                    <option value="con_deuda"<?php echo $filtroEstado == 'con_deuda' ? ' selected' : ''; ?>>Con Deuda</option>
+                                    <option value="sin_deuda"<?php echo $filtroEstado == 'sin_deuda' ? ' selected' : ''; ?>>Sin Deuda</option>
+                                    <option value="limite_excedido"<?php echo $filtroEstado == 'limite_excedido' ? ' selected' : ''; ?>>Límite Excedido</option>
                                 </select>
                             </div>
                             <div class="col-lg-2">
-                                <select class="form-select" id="filtroOrden">
-                                    <option value="nombre">Orden: Nombre A-Z</option>
-                                    <option value="nombre_desc">Orden: Nombre Z-A</option>
-                                    <option value="codigo">Orden: Código</option>
-                                    <option value="deuda_desc">Orden: Deuda (Mayor)</option>
-                                    <option value="deuda_asc">Orden: Deuda (Menor)</option>
-                                    <option value="compras_desc">Orden: Compras (Mayor)</option>
-                                </select>
-                            </div>
-                            <div class="col-lg-2">
-                                <button class="btn btn-outline-primary w-100" onclick="filtrarClientes()">
+                                <button class="btn btn-outline-primary w-100" type="submit">
                                     <i class="fas fa-filter me-2"></i>Filtrar
                                 </button>
+                            </div>
+                            <div class="col-lg-2">
+                                <?php if ($search || $filtroEstado): ?>
+                                <a href="clientes.php" class="btn btn-outline-secondary w-100">
+                                    <i class="fas fa-times me-2"></i>Limpiar
+                                </a>
+                                <?php endif; ?>
                             </div>
                         </div>
                         <div class="row mt-2">
                             <div class="col-12">
                                 <div class="form-text">
-                                    <span id="contadorResultados"><?php echo $total_clientes; ?></span> clientes encontrados
-                                    <span id="contadorFiltrados" class="text-primary" style="display: none;"></span>
+                                    <span id="contadorResultados"><?php echo $total_clientes_filtrados; ?></span> clientes encontrados
                                 </div>
                             </div>
                         </div>
+                        <div>
+                            <button class="btn btn-sm btn-outline-primary" onclick="exportarClientes()">
+                                <i class="fas fa-file-excel me-1"></i>Exportar a Excel
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary ms-2" onclick="imprimirLista()">
+                                <i class="fas fa-print me-1"></i>Imprimir Lista
+                            </button>
+                        </div>
                     </div>
-                </div>
+                </form>
                 
-                <!-- Tabla de clientes mejorada -->
-                <div class="table-responsive">
-                    <table class="table table-hover table-striped" id="tablaClientes">
-                        <thead class="table-primary">
+                <!-- Tabla de clientes con scroll -->
+                <div class="table-responsive" style="max-height: 600px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 8px;">
+                    <table class="table table-hover table-striped mb-0" id="tablaClientes">
+                        <thead class="table-primary" style="position: sticky; top: 0; z-index: 10;">
                             <tr>
                                 <th width="80">
                                     <div class="form-check">
@@ -344,16 +421,15 @@ $clientes_con_deuda = $result_con_deuda->fetch_assoc()['total'];
                                 <th width="120" class="text-end">Límite Crédito</th>
                                 <th width="140" class="text-end">Saldo Actual</th>
                                 <th width="120" class="text-end">Total Comprado</th>
+                                <th width="100" class="text-end">Compras</th>
                                 <th width="100">Estado</th>
-                                <th width="100" class="text-center">Acciones</th>
+                                <th width="150" class="text-center">Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php 
-                            $contador = 0;
                             if ($result_clientes->num_rows > 0):
                                 while ($cliente = $result_clientes->fetch_assoc()): 
-                                    $contador++;
                                     $deuda_porcentaje = $cliente['limite_credito'] > 0 ? 
                                         ($cliente['saldo_actual'] / $cliente['limite_credito']) * 100 : 0;
                                     $limite_excedido = $deuda_porcentaje > 100;
@@ -376,7 +452,7 @@ $clientes_con_deuda = $result_con_deuda->fetch_assoc()['total'];
                                     <strong class="text-primary"><?php echo $cliente['codigo']; ?></strong>
                                     <div class="small text-muted">
                                         <?php echo $cliente['tipo_documento']; ?>: 
-                                        <?php echo $cliente['numero_documento']; ?>
+                                        <?php echo $cliente['numero_documento'] ?: 'N/A'; ?>
                                     </div>
                                 </td>
                                 <td>
@@ -408,12 +484,7 @@ $clientes_con_deuda = $result_con_deuda->fetch_assoc()['total'];
                                     </div>
                                 </td>
                                 <td class="text-end">
-                                    <div><?php echo formatearMoneda($cliente['limite_credito']); ?></div>
-                                    <?php if ($cliente['limite_credito'] > 0): ?>
-                                    <div class="small text-muted">
-                                        <?php echo $cliente['compras_realizadas']; ?> compras
-                                    </div>
-                                    <?php endif; ?>
+                                    <?php echo formatearMoneda($cliente['limite_credito']); ?>
                                 </td>
                                 <td class="text-end">
                                     <?php if ($cliente['saldo_actual'] > 0): ?>
@@ -441,12 +512,15 @@ $clientes_con_deuda = $result_con_deuda->fetch_assoc()['total'];
                                     <?php endif; ?>
                                 </td>
                                 <td class="text-end">
-                                    <div><?php echo formatearMoneda($cliente['total_comprado']); ?></div>
+                                    <?php echo formatearMoneda($cliente['total_comprado']); ?>
+                                    <?php if ($cliente['compras_realizadas'] > 0): ?>
                                     <div class="small text-muted">
-                                        Promedio: <?php echo $cliente['compras_realizadas'] > 0 ? 
-                                            formatearMoneda($cliente['total_comprado'] / $cliente['compras_realizadas']) : 
-                                            'Bs 0,00'; ?>
+                                        Promedio: <?php echo formatearMoneda($cliente['total_comprado'] / $cliente['compras_realizadas']); ?>
                                     </div>
+                                    <?php endif; ?>
+                                </td>
+                                <td class="text-end">
+                                    <?php echo $cliente['compras_realizadas']; ?>
                                 </td>
                                 <td>
                                     <?php if ($cliente['activo'] == 1): ?>
@@ -472,37 +546,23 @@ $clientes_con_deuda = $result_con_deuda->fetch_assoc()['total'];
                                     <?php endif; ?>
                                 </td>
                                 <td class="text-center">
-                                    <div class="btn-group" role="group">
-                                        <button class="btn btn-sm btn-outline-primary" 
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button class="btn btn-outline-primary" 
                                                 data-bs-toggle="modal" 
                                                 data-bs-target="#modalEditarCliente"
                                                 onclick="cargarDatosCliente(<?php echo $cliente['id']; ?>)"
-                                                data-bs-toggle="tooltip" title="Editar cliente">
+                                                title="Editar cliente">
                                             <i class="fas fa-edit"></i>
                                         </button>
-                                        <a href="historial_cliente.php?id=<?php echo $cliente['id']; ?>" 
-                                           class="btn btn-sm btn-outline-info"
-                                           data-bs-toggle="tooltip" title="Ver historial">
-                                            <i class="fas fa-history"></i>
-                                        </a>
-                                        <button class="btn btn-sm btn-outline-<?php echo $cliente['activo'] ? 'danger' : 'success'; ?>"
+                                        
+                                        <button class="btn btn-outline-<?php echo $cliente['activo'] ? 'danger' : 'success'; ?>"
                                                 onclick="cambiarEstadoCliente(<?php echo $cliente['id']; ?>, <?php echo $cliente['activo']; ?>, '<?php echo addslashes($cliente['nombre']); ?>')"
-                                                data-bs-toggle="tooltip" title="<?php echo $cliente['activo'] ? 'Desactivar' : 'Activar'; ?> cliente">
+                                                title="<?php echo $cliente['activo'] ? 'Desactivar' : 'Activar'; ?> cliente">
                                             <i class="fas fa-<?php echo $cliente['activo'] ? 'ban' : 'check'; ?>"></i>
                                         </button>
                                         <?php if ($cliente['saldo_actual'] > 0): ?>
-                                        <a href="registrar_pago.php?cliente_id=<?php echo $cliente['id']; ?>" 
-                                           class="btn btn-sm btn-outline-warning"
-                                           data-bs-toggle="tooltip" title="Registrar pago">
-                                            <i class="fas fa-money-bill"></i>
-                                        </a>
+                                        
                                         <?php endif; ?>
-                                    </div>
-                                    <div class="mt-1">
-                                        <a href="nueva_venta.php?cliente_id=<?php echo $cliente['id']; ?>" 
-                                           class="btn btn-sm btn-success btn-sm py-0">
-                                            <small><i class="fas fa-cart-plus me-1"></i>Nueva Venta</small>
-                                        </a>
                                     </div>
                                 </td>
                             </tr>
@@ -511,7 +571,7 @@ $clientes_con_deuda = $result_con_deuda->fetch_assoc()['total'];
                             else: 
                             ?>
                             <tr>
-                                <td colspan="9" class="text-center py-5">
+                                <td colspan="10" class="text-center py-5">
                                     <div class="text-muted">
                                         <i class="fas fa-users fa-3x mb-3"></i>
                                         <h5>No hay clientes registrados</h5>
@@ -532,7 +592,7 @@ $clientes_con_deuda = $result_con_deuda->fetch_assoc()['total'];
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
-                                <span id="contadorSeleccionados">0</span> clientes seleccionados
+                                <span class="fw-bold" id="contadorSeleccionados">0</span> clientes seleccionados
                             </div>
                             <div class="btn-group">
                                 <button class="btn btn-outline-success btn-sm" onclick="activarSeleccionados()">
@@ -549,24 +609,14 @@ $clientes_con_deuda = $result_con_deuda->fetch_assoc()['total'];
                     </div>
                 </div>
                 
-                <!-- Paginación -->
-                <?php if ($contador > 0): ?>
+                <!-- Botones de exportación -->
                 <div class="d-flex justify-content-between align-items-center mt-3">
                     <div>
                         <small class="text-muted">
-                            Mostrando <?php echo $contador; ?> de <?php echo $total_clientes; ?> clientes
+                            Mostrando <?php echo $result_clientes->num_rows; ?> de <?php echo $total_clientes; ?> clientes
                         </small>
                     </div>
-                    <div>
-                        <button class="btn btn-sm btn-outline-primary" onclick="exportarClientes()">
-                            <i class="fas fa-file-excel me-1"></i>Exportar a Excel
-                        </button>
-                        <button class="btn btn-sm btn-outline-secondary ms-2" onclick="imprimirLista()">
-                            <i class="fas fa-print me-1"></i>Imprimir Lista
-                        </button>
-                    </div>
                 </div>
-                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -576,7 +626,7 @@ $clientes_con_deuda = $result_con_deuda->fetch_assoc()['total'];
 <div class="modal fade" id="modalNuevoCliente" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <form method="POST" action="" id="formNuevoCliente" novalidate>
+            <form method="POST" action="" id="formNuevoCliente">
                 <div class="modal-header bg-gradient-success text-white">
                     <h5 class="modal-title"><i class="fas fa-user-plus me-2"></i>Nuevo Cliente</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -667,7 +717,7 @@ $clientes_con_deuda = $result_con_deuda->fetch_assoc()['total'];
 <div class="modal fade" id="modalEditarCliente" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <form method="POST" action="" id="formEditarCliente" novalidate>
+            <form method="POST" action="" id="formEditarCliente">
                 <div class="modal-header bg-gradient-primary text-white">
                     <h5 class="modal-title"><i class="fas fa-user-edit me-2"></i>Editar Cliente</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -742,7 +792,7 @@ $clientes_con_deuda = $result_con_deuda->fetch_assoc()['total'];
                             <div class="border rounded p-3 bg-light">
                                 <div class="form-check form-switch">
                                     <input class="form-check-input" type="checkbox" role="switch" 
-                                           name="activo" id="editActivo" value="1">
+                                           name="activo" id="editActivo" value="1" checked>
                                     <label class="form-check-label fw-bold" for="editActivo">
                                         Cliente Activo
                                     </label>
@@ -783,201 +833,48 @@ let clientesData = [];
 document.addEventListener('DOMContentLoaded', function() {
     // Inicializar tooltips
     var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
         return new bootstrap.Tooltip(tooltipTriggerEl);
     });
     
-    // Cargar datos de clientes
-    cargarDatosClientes();
-    
-    // Configurar búsqueda en tiempo real
-    const buscarInput = document.getElementById('buscarCliente');
-    if (buscarInput) {
-        buscarInput.addEventListener('input', buscarClientes);
-    }
-    
-    // Configurar filtros
-    document.getElementById('filtroEstado').addEventListener('change', function() {
-        buscarClientes();
-    });
-    
-    document.getElementById('filtroOrden').addEventListener('change', function() {
-        ordenarClientes(this.value);
-    });
-    
     // Check all functionality
-    document.getElementById('checkAll').addEventListener('change', function() {
-        const checkboxes = document.querySelectorAll('.checkCliente');
-        checkboxes.forEach(checkbox => {
-            checkbox.checked = this.checked;
+    const checkAll = document.getElementById('checkAll');
+    if (checkAll) {
+        checkAll.addEventListener('change', function() {
+            const checkboxes = document.querySelectorAll('.checkCliente');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = this.checked;
+            });
+            actualizarContadorSeleccionados();
         });
-        actualizarContadorSeleccionados();
+    }
+    
+    // Event listeners para checkboxes individuales
+    document.querySelectorAll('.checkCliente').forEach(checkbox => {
+        checkbox.addEventListener('change', actualizarContadorSeleccionados);
     });
-    
-    // Validación de formularios
-    const formNuevo = document.getElementById('formNuevoCliente');
-    if (formNuevo) {
-        formNuevo.addEventListener('submit', function(e) {
-            if (!this.checkValidity()) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
-            this.classList.add('was-validated');
-        });
-    }
-    
-    const formEditar = document.getElementById('formEditarCliente');
-    if (formEditar) {
-        formEditar.addEventListener('submit', function(e) {
-            if (!this.checkValidity()) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
-            this.classList.add('was-validated');
-        });
-    }
     
     // Auto-generar código si está vacío
-    document.getElementById('inputCodigo').addEventListener('blur', function() {
-        if (!this.value.trim()) {
-            generarCodigoAutomatico();
-        }
-    });
+    const inputCodigo = document.getElementById('inputCodigo');
+    if (inputCodigo) {
+        inputCodigo.addEventListener('blur', function() {
+            if (!this.value.trim()) {
+                generarCodigoAutomatico();
+            }
+        });
+    }
 });
 
-function cargarDatosClientes() {
-    const filas = document.querySelectorAll('#tablaClientes tbody tr[data-id]');
-    
-    clientesData = Array.from(filas).map(fila => ({
-        id: fila.getAttribute('data-id'),
-        codigo: fila.getAttribute('data-codigo'),
-        nombre: fila.getAttribute('data-nombre'),
-        ciudad: fila.getAttribute('data-ciudad'),
-        telefono: fila.getAttribute('data-telefono'),
-        deuda: parseFloat(fila.getAttribute('data-deuda')),
-        activo: parseInt(fila.getAttribute('data-activo')),
-        limiteExcedido: fila.getAttribute('data-limite-excedido') === 'true',
-        elemento: fila
-    }));
-}
-
-function buscarClientes() {
-    const textoBusqueda = document.getElementById('buscarCliente').value.toLowerCase();
-    const filtroEstado = document.getElementById('filtroEstado').value;
-    
-    let resultados = clientesData.filter(cliente => {
-        // Filtro por texto de búsqueda
-        if (textoBusqueda) {
-            const enCodigo = cliente.codigo.includes(textoBusqueda);
-            const enNombre = cliente.nombre.includes(textoBusqueda);
-            const enCiudad = cliente.ciudad.includes(textoBusqueda);
-            const enTelefono = cliente.telefono.includes(textoBusqueda);
-            
-            if (!enCodigo && !enNombre && !enCiudad && !enTelefono) {
-                return false;
-            }
-        }
-        
-        // Filtro por estado
-        if (filtroEstado) {
-            switch(filtroEstado) {
-                case 'activo':
-                    if (cliente.activo !== 1) return false;
-                    break;
-                case 'inactivo':
-                    if (cliente.activo !== 0) return false;
-                    break;
-                case 'con_deuda':
-                    if (cliente.deuda <= 0) return false;
-                    break;
-                case 'sin_deuda':
-                    if (cliente.deuda > 0) return false;
-                    break;
-                case 'limite_excedido':
-                    if (!cliente.limiteExcedido) return false;
-                    break;
-            }
-        }
-        
-        return true;
-    });
-    
-    // Mostrar/ocultar filas
-    clientesData.forEach(cliente => {
-        cliente.elemento.style.display = 'none';
-    });
-    
-    resultados.forEach(cliente => {
-        cliente.elemento.style.display = '';
-    });
-    
-    // Actualizar contadores
-    document.getElementById('contadorResultados').textContent = resultados.length;
-    
-    const contadorFiltrados = document.getElementById('contadorFiltrados');
-    if (resultados.length !== clientesData.length) {
-        contadorFiltrados.textContent = ` (${resultados.length} filtrados)`;
-        contadorFiltrados.style.display = 'inline';
-    } else {
-        contadorFiltrados.style.display = 'none';
-    }
-    
-    return resultados.length;
-}
-
-function ordenarClientes(criterio) {
-    const filas = Array.from(document.querySelectorAll('#tablaClientes tbody tr[data-id]'));
-    const tbody = document.querySelector('#tablaClientes tbody');
-    
-    filas.sort((a, b) => {
-        const aId = a.getAttribute('data-id');
-        const bId = b.getAttribute('data-id');
-        
-        const clienteA = clientesData.find(c => c.id === aId);
-        const clienteB = clientesData.find(c => c.id === bId);
-        
-        if (!clienteA || !clienteB) return 0;
-        
-        switch(criterio) {
-            case 'nombre':
-                return clienteA.nombre.localeCompare(clienteB.nombre);
-            case 'nombre_desc':
-                return clienteB.nombre.localeCompare(clienteA.nombre);
-            case 'codigo':
-                return clienteA.codigo.localeCompare(clienteB.codigo);
-            case 'deuda_desc':
-                return clienteB.deuda - clienteA.deuda;
-            case 'deuda_asc':
-                return clienteA.deuda - clienteB.deuda;
-            case 'compras_desc':
-                // Aquí necesitarías agregar el campo de compras a los datos
-                return 0;
-            default:
-                return clienteA.nombre.localeCompare(clienteB.nombre);
-        }
-    });
-    
-    // Reordenar filas en la tabla
-    filas.forEach(fila => tbody.appendChild(fila));
-}
-
-function filtrarClientes() {
-    buscarClientes();
-}
-
-function limpiarBusqueda() {
-    document.getElementById('buscarCliente').value = '';
-    document.getElementById('filtroEstado').value = '';
-    document.getElementById('filtroOrden').value = 'nombre';
-    buscarClientes();
-}
-
 function cargarDatosCliente(clienteId) {
-    // Hacer una petición AJAX para obtener los datos completos del cliente
-    fetch(`obtener_datos_cliente.php?id=${clienteId}`)
-        .then(response => response.json())
+    fetch('obtener_datos_cliente.php?id=' + clienteId)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Error en la respuesta del servidor');
+            }
+            return response.json();
+        })
         .then(cliente => {
-            if (cliente) {
+            if (cliente && !cliente.error) {
                 document.getElementById('editClienteId').value = cliente.id;
                 document.getElementById('editCodigo').value = cliente.codigo;
                 document.getElementById('editNombre').value = cliente.nombre;
@@ -991,10 +888,12 @@ function cargarDatosCliente(clienteId) {
                 document.getElementById('editActivo').checked = cliente.activo == 1;
                 document.getElementById('editObservaciones').value = cliente.observaciones || '';
                 document.getElementById('editFechaRegistro').textContent = cliente.fecha_registro || '';
+            } else {
+                mostrarNotificacion('Error al cargar datos del cliente', 'danger');
             }
         })
         .catch(error => {
-            console.error('Error al cargar datos del cliente:', error);
+            console.error('Error:', error);
             mostrarNotificacion('Error al cargar datos del cliente', 'danger');
         });
 }
@@ -1003,17 +902,16 @@ function cambiarEstadoCliente(id, estadoActual, nombre) {
     const nuevoEstado = estadoActual == 1 ? 0 : 1;
     const accion = nuevoEstado == 1 ? 'activar' : 'desactivar';
     
-    if (confirm(`¿${accion.toUpperCase()} al cliente "${nombre}"?`)) {
+    if (confirm('¿' + accion.toUpperCase() + ' al cliente "' + nombre + '"?')) {
         const formData = new FormData();
         formData.append('action', 'cambiar_estado');
         formData.append('id', id);
         formData.append('activo', nuevoEstado);
         
-        fetch('', {
+        fetch(window.location.href, {
             method: 'POST',
             body: formData
         })
-        .then(response => response.text())
         .then(() => {
             location.reload();
         })
@@ -1025,7 +923,6 @@ function cambiarEstadoCliente(id, estadoActual, nombre) {
 }
 
 function generarCodigoAutomatico() {
-    // Generar código automático basado en el último código
     fetch('generar_codigo_cliente.php')
         .then(response => response.text())
         .then(codigo => {
@@ -1041,7 +938,7 @@ function actualizarContadorSeleccionados() {
     const contador = document.getElementById('contadorSeleccionados');
     const accionesLote = document.getElementById('accionesLote');
     
-    contador.textContent = checkboxes.length;
+    if (contador) contador.textContent = checkboxes.length;
     
     if (checkboxes.length > 0) {
         accionesLote.style.display = 'block';
@@ -1056,17 +953,21 @@ function activarSeleccionados() {
     
     if (ids.length === 0) return;
     
-    if (confirm(`¿Activar ${ids.length} cliente(s) seleccionado(s)?`)) {
+    if (confirm('¿Activar ' + ids.length + ' cliente(s) seleccionado(s)?')) {
         const formData = new FormData();
         formData.append('action', 'activar_lote');
         formData.append('ids', JSON.stringify(ids));
         
-        fetch('', {
+        fetch(window.location.href, {
             method: 'POST',
             body: formData
         })
         .then(() => {
             location.reload();
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            mostrarNotificacion('Error al activar clientes', 'danger');
         });
     }
 }
@@ -1077,17 +978,21 @@ function desactivarSeleccionados() {
     
     if (ids.length === 0) return;
     
-    if (confirm(`¿Desactivar ${ids.length} cliente(s) seleccionado(s)?`)) {
+    if (confirm('¿Desactivar ' + ids.length + ' cliente(s) seleccionado(s)?')) {
         const formData = new FormData();
         formData.append('action', 'desactivar_lote');
         formData.append('ids', JSON.stringify(ids));
         
-        fetch('', {
+        fetch(window.location.href, {
             method: 'POST',
             body: formData
         })
         .then(() => {
             location.reload();
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            mostrarNotificacion('Error al desactivar clientes', 'danger');
         });
     }
 }
@@ -1098,7 +1003,7 @@ function exportarSeleccionados() {
     
     if (ids.length === 0) return;
     
-    window.open(`exportar_clientes.php?ids=${ids.join(',')}`, '_blank');
+    window.open('exportar_clientes.php?ids=' + ids.join(','), '_blank');
 }
 
 function exportarClientes() {
@@ -1106,28 +1011,25 @@ function exportarClientes() {
 }
 
 function imprimirLista() {
-    // Crear contenido HTML básico
     let contenido = '<html><head><title>Lista de Clientes</title>';
     contenido += '<style>';
     contenido += 'body { font-family: Arial; margin: 20px; }';
     contenido += 'h2 { text-align: center; color: #2c3e50; }';
     contenido += 'table { width: 100%; border-collapse: collapse; margin-top: 20px; }';
     contenido += 'th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }';
-    contenido += 'th { background-color: #3498db; color: white; }';
+    contenido += 'th { background-color: #0d6efd; color: white; }';
     contenido += '.header { text-align: center; margin-bottom: 30px; }';
     contenido += '.footer { margin-top: 30px; text-align: center; font-size: 12px; color: #7f8c8d; }';
     contenido += '</style>';
     contenido += '</head><body>';
     
-    // Encabezado
     contenido += '<div class="header">';
     contenido += '<h2>LISTA DE CLIENTES</h2>';
-    contenido += '<p><strong>Empresa:</strong> <?php echo htmlspecialchars(EMPRESA_NOMBRE); ?></p>';
+    contenido += '<p><strong>Empresa:</strong> <?php echo htmlspecialchars(EMPRESA_NOMBRE ?? 'TIENDA DE LANAS'); ?></p>';
     contenido += '<p><strong>Fecha:</strong> ' + new Date().toLocaleDateString('es-ES') + '</p>';
-    contenido += '<p><strong>Total:</strong> <?php echo $total_clientes; ?> clientes</p>';
+    contenido += '<p><strong>Total:</strong> <?php echo $total_clientes_filtrados; ?> clientes</p>';
     contenido += '</div>';
     
-    // Tabla
     contenido += '<table>';
     contenido += '<thead><tr>';
     contenido += '<th>Código</th><th>Nombre</th><th>Ciudad</th><th>Teléfono</th>';
@@ -1135,31 +1037,28 @@ function imprimirLista() {
     contenido += '</tr></thead>';
     contenido += '<tbody>';
     
-    // Agregar filas
-    const filas = document.querySelectorAll('#tablaClientes tbody tr[data-id]');
+    const filas = document.querySelectorAll('#tablaClientes tbody tr');
     filas.forEach(function(fila) {
-        if (fila.style.display !== 'none') {
-            const codigo = fila.getAttribute('data-codigo') || '';
-            const nombre = fila.querySelector('td:nth-child(3)').textContent.trim() || '';
-            const ciudad = fila.getAttribute('data-ciudad') || '';
-            const telefono = fila.getAttribute('data-telefono') || '';
-            const deuda = parseFloat(fila.getAttribute('data-deuda')) || 0;
-            const activo = fila.getAttribute('data-activo') == '1' ? 'Activo' : 'Inactivo';
-            
-            contenido += '<tr>';
-            contenido += '<td>' + codigo + '</td>';
-            contenido += '<td>' + nombre + '</td>';
-            contenido += '<td>' + ciudad + '</td>';
-            contenido += '<td>' + telefono + '</td>';
-            contenido += '<td>Bs ' + deuda.toFixed(2).replace('.', ',') + '</td>';
-            contenido += '<td>' + activo + '</td>';
-            contenido += '</tr>';
-        }
+        const codigo = fila.querySelector('td:nth-child(2) .text-primary')?.textContent.trim() || '';
+        const nombre = fila.querySelector('td:nth-child(3) .fw-bold')?.textContent.trim() || '';
+        const ciudad = fila.querySelector('td:nth-child(3) .fa-map-marker-alt')?.parentElement?.textContent.trim() || '';
+        const telefono = fila.querySelector('td:nth-child(4) .fa-phone')?.parentElement?.textContent.trim() || '';
+        const saldoElement = fila.querySelector('td:nth-child(6) .fw-bold');
+        const deuda = saldoElement ? parseFloat(saldoElement.textContent.replace(/[^0-9,-]/g, '').replace(',', '.')) || 0 : 0;
+        const activo = fila.querySelector('.badge.bg-success') ? 'Activo' : 'Inactivo';
+        
+        contenido += '<tr>';
+        contenido += '<td>' + codigo + '</td>';
+        contenido += '<td>' + nombre + '</td>';
+        contenido += '<td>' + ciudad + '</td>';
+        contenido += '<td>' + telefono + '</td>';
+        contenido += '<td>Bs ' + deuda.toFixed(2).replace('.', ',') + '</td>';
+        contenido += '<td>' + activo + '</td>';
+        contenido += '</tr>';
     });
     
     contenido += '</tbody></table>';
     
-    // Pie de página
     contenido += '<div class="footer">';
     contenido += '<p>Documento generado el ' + new Date().toLocaleString('es-ES') + '</p>';
     contenido += '<p>Sistema de Gestión de Clientes</p>';
@@ -1167,44 +1066,31 @@ function imprimirLista() {
     
     contenido += '</body></html>';
     
-    // Abrir ventana e imprimir
     const ventana = window.open('', '_blank', 'width=900,height=700');
     if (ventana) {
         ventana.document.write(contenido);
         ventana.document.close();
-        
-        // Esperar a que cargue e imprimir
-        ventana.onload = function() {
+        setTimeout(function() {
+            ventana.print();
             setTimeout(function() {
-                ventana.print();
-                setTimeout(function() {
-                    ventana.close();
-                }, 1000);
-            }, 500);
-        };
+                ventana.close();
+            }, 1000);
+        }, 500);
     } else {
         alert('Por favor permita ventanas emergentes para imprimir');
     }
 }
 
 function mostrarNotificacion(mensaje, tipo = 'info') {
-    // Eliminar notificaciones anteriores
-    const notificacionesAnteriores = document.querySelectorAll('.notificacion-flotante');
-    notificacionesAnteriores.forEach(function(n) {
-        n.remove();
-    });
-    
     const notificacion = document.createElement('div');
     notificacion.className = 'alert alert-' + tipo + ' alert-dismissible fade show notificacion-flotante';
     notificacion.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999; max-width: 350px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);';
     
-    notificacion.innerHTML = 
-        mensaje +
+    notificacion.innerHTML = mensaje +
         '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
     
     document.body.appendChild(notificacion);
     
-    // Auto-eliminar después de 5 segundos
     setTimeout(function() {
         if (notificacion.parentNode) {
             notificacion.remove();
@@ -1212,14 +1098,15 @@ function mostrarNotificacion(mensaje, tipo = 'info') {
     }, 5000);
 }
 
-
+function formatearMoneda(valor) {
+    return 'Bs ' + parseFloat(valor).toFixed(2).replace('.', ',');
+}
 </script>
 
 <style>
 /* Estilos para la tabla */
 .table-hover tbody tr:hover {
     background-color: rgba(13, 110, 253, 0.05);
-    transform: translateY(-1px);
     transition: all 0.2s;
 }
 
@@ -1259,6 +1146,7 @@ function mostrarNotificacion(mensaje, tipo = 'info') {
 /* Botones de acción */
 .btn-group .btn {
     border-radius: 5px !important;
+    margin: 0 2px;
 }
 
 /* Notificaciones flotantes */
@@ -1287,6 +1175,26 @@ function mostrarNotificacion(mensaje, tipo = 'info') {
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1) !important;
 }
 
+/* Scroll personalizado */
+.table-responsive::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.table-responsive::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .table-responsive {
@@ -1295,6 +1203,7 @@ function mostrarNotificacion(mensaje, tipo = 'info') {
     
     .btn-group {
         flex-wrap: wrap;
+        justify-content: center;
     }
     
     .btn-group .btn {

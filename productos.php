@@ -617,9 +617,7 @@ $stats = $result_stats->fetch_assoc();
                                             Mostrando <?php echo $result_productos->num_rows; ?> productos
                                         </div>
                                         <div class="text-end">
-                                            <button class="btn btn-sm btn-outline-secondary" onclick="exportarProductos()">
-                                                <i class="fas fa-file-excel me-1"></i>Exportar
-                                            </button>
+                                            
                                             <button class="btn btn-sm btn-outline-secondary ms-1" onclick="imprimirProductos()">
                                                 <i class="fas fa-print me-1"></i>Imprimir
                                             </button>

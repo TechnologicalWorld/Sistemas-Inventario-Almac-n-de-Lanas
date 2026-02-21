@@ -23,24 +23,43 @@ $proveedor_id = isset($_GET['proveedor_id']) ? intval($_GET['proveedor_id']) : n
 $mensaje = '';
 $tipo_mensaje = '';
 
+// Parámetros de búsqueda
+$search = limpiar($_GET['search'] ?? '');
+
+$whereProv = "saldo_actual > 0 AND activo = 1";
+$paramsProv = [];
+$typesProv = "";
+
+if ($search !== '') {
+    $whereProv .= " AND (codigo LIKE ? OR nombre LIKE ? OR ciudad LIKE ? OR telefono LIKE ? )";
+    $like = "%$search%";
+    $paramsProv = [$like, $like, $like, $like];
+    $typesProv = "ssss";
+}
+
 // Mostrar mensaje si viene de redirección
 if (isset($_GET['success']) && $_GET['success'] == 1) {
     $mensaje = "Pago registrado exitosamente";
     $tipo_mensaje = "success";
 }
 
-// Obtener proveedores con saldo pendiente
+// Obtener proveedores con saldo pendiente (SIN PAGINACIÓN)
 $query_proveedores = "SELECT id, codigo, nombre, ciudad, telefono, 
                      credito_limite, saldo_actual, activo
                      FROM proveedores 
-                     WHERE saldo_actual > 0 AND activo = 1
+                     WHERE $whereProv
                      ORDER BY saldo_actual DESC";
-$result_proveedores = $conn->query($query_proveedores);
 
-// Verificar error en consulta
-if (!$result_proveedores) {
-    die("Error en la consulta: " . $conn->error);
+if (!empty($paramsProv)) {
+    $stmt_proveedores = $conn->prepare($query_proveedores);
+    $stmt_proveedores->bind_param($typesProv, ...$paramsProv);
+    $stmt_proveedores->execute();
+    $result_proveedores = $stmt_proveedores->get_result();
+} else {
+    $result_proveedores = $conn->query($query_proveedores);
 }
+
+$total_proveedores_filtrados = $result_proveedores->num_rows;
 
 // Obtener historial de un proveedor específico
 $historial_proveedor = [];
@@ -82,75 +101,266 @@ if ($proveedor_id) {
 </div>
 <?php endif; ?>
 
+<style>
+/* Estilos mejorados para el historial */
+.historial-card {
+    border: none;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.historial-header {
+    background: linear-gradient(135deg, #42b346 0%, #165032 100%);
+    color: white;
+    border-radius: 10px 10px 0 0 !important;
+}
+
+.movimiento-item {
+    transition: all 0.3s ease;
+    border-left: 4px solid transparent;
+}
+
+.movimiento-item:hover {
+    background-color: #f8f9fa;
+    transform: translateX(5px);
+}
+
+.movimiento-compra {
+    border-left-color: #dc3545;
+}
+
+.movimiento-pago {
+    border-left-color: #28a745;
+}
+
+.movimiento-adelanto {
+    border-left-color: #ffc107;
+}
+
+.badge-movimiento {
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.total-card {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 15px;
+}
+
+.total-card .cantidad {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.total-card .etiqueta {
+    font-size: 0.9rem;
+    color: #6c757d;
+}
+
+.avatar-circle {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 16px;
+}
+
+/* Scroll personalizado */
+.historial-scroll {
+    max-height: 500px;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+.historial-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+
+.historial-scroll::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.historial-scroll::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 10px;
+}
+
+.historial-scroll::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Timeline */
+.timeline {
+    position: relative;
+    padding: 20px 0;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 30px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #e9ecef;
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 20px;
+    padding-left: 60px;
+}
+
+.timeline-item::before {
+    content: '';
+    position: absolute;
+    left: 24px;
+    top: 20px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: white;
+    border: 3px solid;
+}
+
+.timeline-item.compra::before {
+    border-color: #dc3545;
+}
+
+.timeline-item.pago::before {
+    border-color: #28a745;
+}
+
+.timeline-item.adelanto::before {
+    border-color: #ffc107;
+}
+
+.timeline-content {
+    background: white;
+    border-radius: 10px;
+    padding: 15px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.timeline-date {
+    font-size: 0.85rem;
+    color: #6c757d;
+    margin-bottom: 5px;
+}
+
+.timeline-title {
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+
+.timeline-amounts {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+}
+
+.amount-badge {
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-size: 0.9rem;
+}
+
+.amount-badge.compra {
+    background: #fee2e2;
+    color: #dc3545;
+}
+
+.amount-badge.pago {
+    background: #d4edda;
+    color: #28a745;
+}
+
+.amount-badge.adelanto {
+    background: #fff3cd;
+    color: #856404;
+}
+</style>
+
 <div class="row">
     <!-- Proveedores con saldo pendiente -->
-    <div class="col-md-<?php echo $proveedor_id ? '6' : '12'; ?>">
-        <div class="card mb-4">
-            <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Proveedores con Saldo Pendiente</h5>
+    <div class="col-md-<?php echo $proveedor_id ? '5' : '12'; ?>">
+        <div class="card shadow mb-4">
+            <div class="card-header bg-gradient-warning text-white d-flex justify-content-between align-items-center py-3">
                 <div>
-                    <span class="badge bg-danger me-2">
-                        <?php echo $result_proveedores->num_rows; ?> proveedores
-                    </span>
-                    <button class="btn btn-sm btn-outline-primary" onclick="exportarReportePagar()">
-                        <i class="fas fa-file-excel"></i>
+                    <h5 class="mb-0">
+                        <i class="fas fa-truck me-2"></i>Proveedores con Saldo Pendiente
+                    </h5>
+                    <small class="opacity-75">Total: <?php echo $total_proveedores_filtrados; ?> proveedores</small>
+                </div>
+                <div>
+                    <button class="btn btn-sm btn-outline-light" onclick="exportarReportePagar()">
+                        <i class="fas fa-file-excel me-1"></i>Exportar
                     </button>
                 </div>
             </div>
             <div class="card-body">
                 <!-- Buscador -->
-                <div class="mb-3">
+                <form method="GET" class="mb-4">
+                    <?php if ($proveedor_id): ?>
+                        <input type="hidden" name="proveedor_id" value="<?php echo $proveedor_id; ?>">
+                    <?php endif; ?>
                     <div class="input-group">
-                        <span class="input-group-text">
-                            <i class="fas fa-search"></i>
+                        <span class="input-group-text bg-white border-end-0">
+                            <i class="fas fa-search text-primary"></i>
                         </span>
-                        <input type="text" class="form-control" id="buscarProveedorPagar" 
+                        <input type="text" name="search" class="form-control border-start-0 ps-0" 
+                               value="<?php echo htmlspecialchars($search); ?>"
                                placeholder="Buscar por código, nombre, ciudad o teléfono...">
-                        <button class="btn btn-outline-secondary" type="button" onclick="limpiarBusqueda()">
-                            <i class="fas fa-times"></i>
+                        <button class="btn btn-primary" type="submit">
+                            <i class="fas fa-search me-2"></i>Buscar
                         </button>
+                        <?php if ($search): ?>
+                        <a href="cuentas_pagar.php<?php echo $proveedor_id ? '?proveedor_id=' . $proveedor_id : ''; ?>" 
+                           class="btn btn-outline-secondary">
+                            <i class="fas fa-times"></i>
+                        </a>
+                        <?php endif; ?>
                     </div>
-                </div>
+                </form>
                 
-                <div class="table-responsive">
-                    <table class="table table-hover table-sm" id="tablaProveedoresPagar">
-                        <thead class="table-light">
+                <!-- Tabla de proveedores con scroll -->
+                <div class="table-responsive" style="max-height: 600px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 8px;">
+                    <table class="table table-hover mb-0" id="tablaProveedoresPagar">
+                        <thead class="table-light" style="position: sticky; top: 0; background: white; z-index: 10;">
                             <tr>
-                                <th width="25%">Proveedor</th>
-                                <th width="15%">Ciudad</th>
-                                <th width="15%" class="text-end">Límite Crédito</th>
-                                <th width="20%" class="text-end">Saldo Actual</th>
-                                <th width="15%" class="text-end">Disponible</th>
-                                <th width="10%">Estado</th>
-                                <th width="15%">Acciones</th>
+                                <th width="30%">Proveedor</th>
+                                <th width="20%">Ciudad</th>
+                                <th width="20%" class="text-end">Saldo Actual (Deuda)</th>
+                                <th width="15%">Estado</th>
+                                <th width="15%" class="text-center">Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php if ($result_proveedores->num_rows > 0): 
                                 $total_deuda = 0;
-                                $total_limite = 0;
-                                $total_disponible = 0;
                                 $total_proveedores = 0;
                             ?>
                                 <?php while ($proveedor = $result_proveedores->fetch_assoc()): 
-                                    $disponible = $proveedor['credito_limite'] - $proveedor['saldo_actual'];
-                                    $porcentaje_uso = $proveedor['credito_limite'] > 0 ? 
-                                        ($proveedor['saldo_actual'] / $proveedor['credito_limite']) * 100 : 0;
-                                    
                                     $total_deuda += $proveedor['saldo_actual'];
-                                    $total_limite += $proveedor['credito_limite'];
-                                    $total_disponible += $disponible;
                                     $total_proveedores++;
                                 ?>
-                                <tr class="<?php echo $porcentaje_uso > 100 ? 'table-danger' : ($porcentaje_uso > 80 ? 'table-warning' : ''); ?>">
+                                <tr class="align-middle">
                                     <td>
                                         <div class="d-flex align-items-center">
-                                            <div class="avatar-circle bg-primary text-white me-2">
+                                            <div class="avatar-circle bg-primary text-white me-3">
                                                 <?php echo strtoupper(substr($proveedor['nombre'], 0, 1)); ?>
                                             </div>
                                             <div>
-                                                <strong class="d-block"><?php echo htmlspecialchars($proveedor['codigo']); ?></strong>
-                                                <small class="text-muted d-block"><?php echo htmlspecialchars($proveedor['nombre']); ?></small>
+                                                <strong class="d-block text-primary"><?php echo htmlspecialchars($proveedor['codigo']); ?></strong>
+                                                <span class="d-block fw-bold"><?php echo htmlspecialchars($proveedor['nombre']); ?></span>
                                                 <?php if ($proveedor['telefono']): ?>
                                                 <small class="text-muted">
                                                     <i class="fas fa-phone fa-xs me-1"></i><?php echo htmlspecialchars($proveedor['telefono']); ?>
@@ -159,69 +369,40 @@ if ($proveedor_id) {
                                             </div>
                                         </div>
                                     </td>
-                                    <td><?php echo htmlspecialchars($proveedor['ciudad']); ?></td>
-                                    <td class="text-end"><?php echo formatearMoneda($proveedor['credito_limite']); ?></td>
-                                    <td class="text-end">
-                                        <span class="fw-bold text-danger">
-                                            <?php echo formatearMoneda($proveedor['saldo_actual']); ?>
+                                    <td>
+                                        <span class="badge bg-info bg-opacity-25 text-dark">
+                                            <i class="fas fa-map-marker-alt me-1"></i>
+                                            <?php echo htmlspecialchars($proveedor['ciudad']); ?>
                                         </span>
-                                        <?php if ($proveedor['credito_limite'] > 0): ?>
-                                        <div class="progress mt-1" style="height: 5px;">
-                                            <div class="progress-bar bg-danger" 
-                                                 style="width: <?php echo min($porcentaje_uso, 100); ?>%"
-                                                 title="<?php echo number_format($porcentaje_uso, 1); ?>% de uso">
-                                            </div>
-                                        </div>
-                                        <small class="text-muted">
-                                            <?php echo number_format($porcentaje_uso, 1); ?>%
-                                        </small>
-                                        <?php endif; ?>
                                     </td>
                                     <td class="text-end">
-                                        <span class="text-<?php echo $disponible > 0 ? 'success' : 'danger'; ?> fw-bold">
-                                            <?php echo formatearMoneda($disponible); ?>
+                                        <span class="fw-bold text-danger fs-5">
+                                            <?php echo formatearMoneda($proveedor['saldo_actual']); ?>
                                         </span>
                                     </td>
                                     <td>
                                         <?php if ($proveedor['activo'] == 1): ?>
-                                            <span class="badge bg-success">Activo</span>
+                                            <span class="badge bg-success rounded-pill px-3 py-2">
+                                                <i class="fas fa-check-circle me-1"></i>Activo
+                                            </span>
                                         <?php else: ?>
-                                            <span class="badge bg-danger">Inactivo</span>
-                                        <?php endif; ?>
-                                        <?php if ($porcentaje_uso > 100): ?>
-                                            <div class="mt-1">
-                                                <span class="badge bg-danger">EXCEDIDO</span>
-                                            </div>
-                                        <?php elseif ($porcentaje_uso > 80): ?>
-                                            <div class="mt-1">
-                                                <span class="badge bg-warning">ALTO</span>
-                                            </div>
+                                            <span class="badge bg-danger rounded-pill px-3 py-2">
+                                                <i class="fas fa-ban me-1"></i>Inactivo
+                                            </span>
                                         <?php endif; ?>
                                     </td>
-                                    <td>
-                                        <div class="btn-group btn-group-sm" role="group">
-                                            <a href="cuentas_pagar.php?proveedor_id=<?php echo $proveedor['id']; ?>" 
-                                               class="btn btn-outline-primary" 
-                                               title="Ver historial">
-                                                <i class="fas fa-eye"></i>
-                                            </a>
-                                            <a href="registrar_pago_proveedor.php?proveedor_id=<?php echo $proveedor['id']; ?>" 
-                                               class="btn btn-outline-success"
-                                               title="Registrar pago">
-                                                <i class="fas fa-credit-card"></i>
-                                            </a>
-                                            <a href="proveedores.php?action=edit&id=<?php echo $proveedor['id']; ?>" 
-                                               class="btn btn-outline-info"
-                                               title="Editar proveedor">
-                                                <i class="fas fa-edit"></i>
-                                            </a>
-                                        </div>
+                                    <td class="text-center">
+                                        <a href="cuentas_pagar.php?proveedor_id=<?php echo $proveedor['id']; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?>" 
+                                           class="btn btn-sm btn-outline-primary <?php echo $proveedor_id == $proveedor['id'] ? 'active' : ''; ?>"
+                                           title="Ver historial">
+                                            <i class="fas fa-eye me-1"></i>Ver
+                                        </a>
                                     </td>
                                 </tr>
                                 <?php endwhile; ?>
                             <?php else: ?>
                             <tr>
-                                <td colspan="7" class="text-center text-muted p-5">
+                                <td colspan="5" class="text-center text-muted p-5">
                                     <div class="py-4">
                                         <i class="fas fa-check-circle fa-4x mb-3 text-success opacity-50"></i>
                                         <h5 class="text-success">¡Excelente!</h5>
@@ -233,18 +414,11 @@ if ($proveedor_id) {
                             <?php endif; ?>
                         </tbody>
                         <?php if ($result_proveedores->num_rows > 0): ?>
-                        <tfoot class="table-active">
+                        <tfoot class="table-light fw-bold">
                             <tr>
-                                <td><strong>TOTALES:</strong></td>
-                                <td></td>
-                                <td class="text-end"><strong><?php echo formatearMoneda($total_limite); ?></strong></td>
-                                <td class="text-end">
-                                    <strong class="text-danger"><?php echo formatearMoneda($total_deuda); ?></strong>
-                                </td>
-                                <td class="text-end">
-                                    <strong class="text-success"><?php echo formatearMoneda($total_disponible); ?></strong>
-                                </td>
-                                <td colspan="2"></td>
+                                <td colspan="2">TOTAL GENERAL:</td>
+                                <td class="text-end text-danger fs-5"><?php echo formatearMoneda($total_deuda); ?></td>
+                                <td colspan="2" class="text-center"><?php echo $total_proveedores; ?> proveedores</td>
                             </tr>
                         </tfoot>
                         <?php endif; ?>
@@ -254,216 +428,194 @@ if ($proveedor_id) {
         </div>
     </div>
     
-    <!-- Historial del proveedor seleccionado -->
+    <!-- Historial del proveedor seleccionado - VERSIÓN MEJORADA -->
     <?php if ($proveedor_id && $proveedor_info): ?>
-    <div class="col-md-6">
-        <div class="card mb-4">
-            <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
-                <div>
-                    <h5 class="mb-0">
-                        <i class="fas fa-building me-2"></i>
-                        <?php echo htmlspecialchars($proveedor_info['nombre']); ?>
-                        <small class="fs-6 opacity-75">(<?php echo htmlspecialchars($proveedor_info['codigo']); ?>)</small>
-                    </h5>
-                    <small class="opacity-75">
-                        <i class="fas fa-city me-1"></i><?php echo htmlspecialchars($proveedor_info['ciudad']); ?> | 
-                        <i class="fas fa-phone fa-xs me-1"></i><?php echo htmlspecialchars($proveedor_info['telefono'] ?: 'Sin teléfono'); ?>
-                    </small>
-                </div>
-                <div>
-                    <a href="cuentas_pagar.php" class="btn btn-sm btn-outline-light">
-                        <i class="fas fa-times"></i>
-                    </a>
+    <div class="col-md-7">
+        <div class="card shadow historial-card">
+            <div class="card-header historial-header py-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-1">
+                            <i class="fas fa-history me-2"></i>
+                            Historial de Movimientos
+                        </h5>
+                        <h4 class="mb-0 fw-bold"><?php echo htmlspecialchars($proveedor_info['nombre']); ?></h4>
+                        <small class="opacity-75">
+                            <i class="fas fa-code me-1"></i><?php echo htmlspecialchars($proveedor_info['codigo']); ?> | 
+                            <i class="fas fa-map-marker-alt me-1"></i><?php echo htmlspecialchars($proveedor_info['ciudad']); ?> | 
+                            <i class="fas fa-phone me-1"></i><?php echo htmlspecialchars($proveedor_info['telefono'] ?: 'Sin teléfono'); ?>
+                        </small>
+                    </div>
+                    <div>
+                        <a href="cuentas_pagar.php<?php echo $search ? '?search=' . urlencode($search) : ''; ?>" 
+                           class="btn btn-outline-light btn-sm">
+                            <i class="fas fa-arrow-left me-1"></i>Volver
+                        </a>
+                        <a href="registrar_pago_proveedor.php?proveedor_id=<?php echo $proveedor_id; ?>" 
+                           class="btn btn-success btn-sm ms-2">
+                            <i class="fas fa-credit-card me-1"></i>Nuevo Abono
+                        </a>
+                    </div>
                 </div>
             </div>
+            
             <div class="card-body">
-                <!-- Resumen del proveedor -->
+                <!-- Resumen de saldos - Tarjetas mejoradas -->
                 <div class="row mb-4">
-                    <div class="col-md-6 mb-3">
-                        <div class="card bg-light">
-                            <div class="card-body p-3">
-                                <h6>Resumen de Cuenta</h6>
-                                <div class="d-flex justify-content-between mb-2">
-                                    <span>Límite Crédito:</span>
-                                    <strong><?php echo formatearMoneda($proveedor_info['credito_limite']); ?></strong>
-                                </div>
-                                <div class="d-flex justify-content-between mb-2">
-                                    <span>Saldo Actual:</span>
-                                    <strong class="text-danger"><?php echo formatearMoneda($proveedor_info['saldo_actual']); ?></strong>
-                                </div>
-                                <div class="d-flex justify-content-between">
-                                    <span>Disponible:</span>
-                                    <strong class="text-success">
-                                        <?php echo formatearMoneda($proveedor_info['credito_limite'] - $proveedor_info['saldo_actual']); ?>
-                                    </strong>
-                                </div>
+                    <div class="col-md-4">
+                        <div class="total-card text-center">
+                            <div class="etiqueta">
+                                <i class="fas fa-shopping-cart me-1 text-danger"></i>Total Compras
                             </div>
-                        </div>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <div class="card bg-light">
-                            <div class="card-body p-3">
-                                <h6>Acciones</h6>
-                                <div class="d-grid gap-2">
-                                    <a href="registrar_pago_proveedor.php?proveedor_id=<?php echo $proveedor_id; ?>" 
-                                       class="btn btn-success">
-                                        <i class="fas fa-credit-card me-2"></i>Registrar Pago
-                                    </a>
-                                    <button class="btn btn-outline-primary" onclick="imprimirExtracto(<?php echo $proveedor_id; ?>)">
-                                        <i class="fas fa-print me-2"></i>Imprimir Extracto
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Tabla de historial -->
-                <div class="mb-4">
-                    <h6 class="mb-3">
-                        <i class="fas fa-history me-2"></i>
-                        Historial de Movimientos
-                        <?php if ($historial_proveedor && $historial_proveedor->num_rows > 0): ?>
-                        <span class="badge bg-secondary ms-2"><?php echo $historial_proveedor->num_rows; ?></span>
-                        <?php endif; ?>
-                    </h6>
-                    
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover">
-                            <thead>
-                                <tr>
-                                    <th>Fecha</th>
-                                    <th>Descripción</th>
-                                    <th class="text-end">Compra</th>
-                                    <th class="text-end">A Cuenta</th>
-                                    <th class="text-end">Adelanto</th>
-                                    <th class="text-end">Saldo</th>
-                                    <th>Usuario</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php if ($historial_proveedor && $historial_proveedor->num_rows > 0): 
-                                    $total_compras = 0;
-                                    $total_a_cuenta = 0;
-                                    $total_adelanto = 0;
-                                    $saldo_actual = 0;
+                            <div class="cantidad text-danger">
+                                <?php 
+                                $total_compras = 0;
+                                if ($historial_proveedor) {
+                                    $historial_proveedor->data_seek(0);
+                                    while ($mov = $historial_proveedor->fetch_assoc()) {
+                                        $total_compras += $mov['compra'];
+                                    }
+                                    $historial_proveedor->data_seek(0);
+                                }
+                                echo formatearMoneda($total_compras);
                                 ?>
-                                    <?php while ($movimiento = $historial_proveedor->fetch_assoc()): 
-                                        $total_compras += $movimiento['compra'];
-                                        $total_a_cuenta += $movimiento['a_cuenta'];
-                                        $total_adelanto += $movimiento['adelanto'];
-                                        $saldo_actual = $movimiento['saldo'];
-                                    ?>
-                                    <tr>
-                                        <td><?php echo formatearFecha($movimiento['fecha']); ?></td>
-                                        <td>
-                                            <small><?php echo htmlspecialchars($movimiento['descripcion']); ?></small>
-                                            <?php if ($movimiento['referencia']): ?>
-                                                <br><small class="text-muted">Ref: <?php echo htmlspecialchars($movimiento['referencia']); ?></small>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td class="text-end">
-                                            <?php if ($movimiento['compra'] > 0): ?>
-                                                <span class="text-danger"><?php echo formatearMoneda($movimiento['compra']); ?></span>
-                                            <?php else: ?>
-                                                <span class="text-muted"><?php echo formatearMoneda($movimiento['compra']); ?></span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td class="text-end">
-                                            <?php if ($movimiento['a_cuenta'] > 0): ?>
-                                                <span class="text-danger"><?php echo formatearMoneda($movimiento['a_cuenta']); ?></span>
-                                            <?php else: ?>
-                                                <span class="text-muted"><?php echo formatearMoneda($movimiento['a_cuenta']); ?></span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td class="text-end">
-                                            <?php if ($movimiento['adelanto'] > 0): ?>
-                                                <span class="text-success"><?php echo formatearMoneda($movimiento['adelanto']); ?></span>
-                                            <?php else: ?>
-                                                <span class="text-muted"><?php echo formatearMoneda($movimiento['adelanto']); ?></span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td class="text-end">
-                                            <span class="fw-bold <?php echo $movimiento['saldo'] > 0 ? 'text-danger' : 'text-success'; ?>">
-                                                <?php echo formatearMoneda($movimiento['saldo']); ?>
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <small><?php echo htmlspecialchars($movimiento['usuario_nombre'] ?: 'Usuario ' . $movimiento['usuario_id']); ?></small>
-                                        </td>
-                                    </tr>
-                                    <?php endwhile; ?>
-                                    <!-- Totales del proveedor -->
-                                    <tr class="table-active">
-                                        <td colspan="2"><strong>TOTALES:</strong></td>
-                                        <td class="text-end">
-                                            <strong class="text-danger"><?php echo formatearMoneda($total_compras); ?></strong>
-                                        </td>
-                                        <td class="text-end">
-                                            <strong class="text-danger"><?php echo formatearMoneda($total_a_cuenta); ?></strong>
-                                        </td>
-                                        <td class="text-end">
-                                            <strong class="text-success"><?php echo formatearMoneda($total_adelanto); ?></strong>
-                                        </td>
-                                        <td class="text-end">
-                                            <strong class="<?php echo $saldo_actual > 0 ? 'text-danger' : 'text-success'; ?>">
-                                                <?php echo formatearMoneda($saldo_actual); ?>
-                                            </strong>
-                                        </td>
-                                        <td></td>
-                                    </tr>
-                                <?php else: ?>
-                                <tr>
-                                    <td colspan="7" class="text-center text-muted p-3">
-                                        No hay movimientos para este proveedor
-                                    </td>
-                                </tr>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="total-card text-center">
+                            <div class="etiqueta">
+                                <i class="fas fa-credit-card me-1 text-success"></i>Total Pagado
+                            </div>
+                            <div class="cantidad text-success">
+                                <?php 
+                                $total_pagado = 0;
+                                if ($historial_proveedor) {
+                                    $historial_proveedor->data_seek(0);
+                                    while ($mov = $historial_proveedor->fetch_assoc()) {
+                                        $total_pagado += $mov['a_cuenta'] + $mov['adelanto'];
+                                    }
+                                    $historial_proveedor->data_seek(0);
+                                }
+                                echo formatearMoneda($total_pagado);
+                                ?>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="total-card text-center">
+                            <div class="etiqueta">
+                                <i class="fas fa-clock me-1 text-warning"></i>Saldo Actual (Deuda)
+                            </div>
+                            <div class="cantidad text-warning">
+                                <?php echo formatearMoneda($proveedor_info['saldo_actual']); ?>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 
-                <!-- Resumen de movimientos -->
-                <?php
-                $query_resumen = "SELECT 
-                                 SUM(compra) as total_compras,
-                                 SUM(a_cuenta) as total_a_cuenta,
-                                 SUM(adelanto) as total_pagos,
-                                 MAX(saldo) as saldo_actual
-                                 FROM proveedores_estado_cuentas 
-                                 WHERE proveedor_id = ?";
-                $stmt_resumen = $conn->prepare($query_resumen);
-                $stmt_resumen->bind_param("i", $proveedor_id);
-                $stmt_resumen->execute();
-                $result_resumen = $stmt_resumen->get_result();
-                $resumen = $result_resumen->fetch_assoc();
-                ?>
-                <div class="row mt-4">
-                    <div class="col-md-4 mb-3">
-                        <div class="card bg-danger text-white">
-                            <div class="card-body text-center p-3">
-                                <h6>Total Compras</h6>
-                                <h4><?php echo formatearMoneda($resumen['total_compras'] ?? 0); ?></h4>
+                <!-- Historial de movimientos con timeline mejorado -->
+                <h6 class="mb-3">
+                    <i class="fas fa-list-alt me-2 text-primary"></i>
+                    Detalle de Movimientos
+                    <?php if ($historial_proveedor && $historial_proveedor->num_rows > 0): ?>
+                    <span class="badge bg-primary ms-2"><?php echo $historial_proveedor->num_rows; ?> registros</span>
+                    <?php endif; ?>
+                </h6>
+                
+                <div class="historial-scroll">
+                    <?php if ($historial_proveedor && $historial_proveedor->num_rows > 0): ?>
+                        <div class="timeline">
+                            <?php 
+                            $contador = 0;
+                            while ($movimiento = $historial_proveedor->fetch_assoc()): 
+                                $tipo_clase = '';
+                                $tipo_icono = '';
+                                
+                                if ($movimiento['compra'] > 0) {
+                                    $tipo_clase = 'compra';
+                                    $tipo_icono = 'fa-cart-plus';
+                                } elseif ($movimiento['adelanto'] > 0) {
+                                    $tipo_clase = 'adelanto';
+                                    $tipo_icono = 'fa-hand-holding-usd';
+                                } elseif ($movimiento['a_cuenta'] > 0) {
+                                    $tipo_clase = 'pago';
+                                    $tipo_icono = 'fa-credit-card';
+                                }
+                            ?>
+                            <div class="timeline-item <?php echo $tipo_clase; ?>">
+                                <div class="timeline-content">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <span class="badge-movimiento <?php echo $tipo_clase; ?>">
+                                                <i class="fas <?php echo $tipo_icono; ?> me-1"></i>
+                                                <?php 
+                                                if ($movimiento['compra'] > 0) echo 'COMPRA';
+                                                elseif ($movimiento['adelanto'] > 0) echo 'ADELANTO';
+                                                elseif ($movimiento['a_cuenta'] > 0) echo 'PAGO';
+                                                ?>
+                                            </span>
+                                            <div class="timeline-date">
+                                                <i class="far fa-calendar-alt me-1"></i>
+                                                <?php echo formatearFecha($movimiento['fecha']); ?>
+                                                <span class="mx-2">|</span>
+                                                <i class="far fa-clock me-1"></i>
+                                                <?php echo date('H:i', strtotime($movimiento['creado_en'])); ?>
+                                            </div>
+                                        </div>
+                                        <small class="text-muted">
+                                            <i class="fas fa-user me-1"></i>
+                                            <?php echo htmlspecialchars($movimiento['usuario_nombre'] ?: 'Usuario ' . $movimiento['usuario_id']); ?>
+                                        </small>
+                                    </div>
+                                    
+                                    <div class="timeline-title">
+                                        <?php echo htmlspecialchars($movimiento['descripcion']); ?>
+                                        <?php if ($movimiento['referencia']): ?>
+                                        <br><small class="text-muted">Ref: <?php echo htmlspecialchars($movimiento['referencia']); ?></small>
+                                        <?php endif; ?>
+                                    </div>
+                                    
+                                    <div class="timeline-amounts">
+                                        <?php if ($movimiento['compra'] > 0): ?>
+                                        <div class="amount-badge compra">
+                                            <i class="fas fa-plus-circle me-1"></i>
+                                            Compra: <?php echo formatearMoneda($movimiento['compra']); ?>
+                                        </div>
+                                        <?php endif; ?>
+                                        
+                                        <?php if ($movimiento['a_cuenta'] > 0): ?>
+                                        <div class="amount-badge pago">
+                                            <i class="fas fa-minus-circle me-1"></i>
+                                            Pago: <?php echo formatearMoneda($movimiento['a_cuenta']); ?>
+                                        </div>
+                                        <?php endif; ?>
+                                        
+                                        <?php if ($movimiento['adelanto'] > 0): ?>
+                                        <div class="amount-badge adelanto">
+                                            <i class="fas fa-minus-circle me-1"></i>
+                                            Adelanto: <?php echo formatearMoneda($movimiento['adelanto']); ?>
+                                        </div>
+                                        <?php endif; ?>
+                                    </div>
+                                    
+                                    <div class="mt-2 text-end">
+                                        <small class="text-muted">Saldo después del movimiento:</small>
+                                        <span class="fw-bold <?php echo $movimiento['saldo'] > 0 ? 'text-danger' : 'text-success'; ?> ms-2">
+                                            <?php echo formatearMoneda($movimiento['saldo']); ?>
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
+                            <?php endwhile; ?>
                         </div>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <div class="card bg-success text-white">
-                            <div class="card-body text-center p-3">
-                                <h6>Total Pagado</h6>
-                                <h4><?php echo formatearMoneda($resumen['total_pagos'] ?? 0); ?></h4>
-                            </div>
+                    <?php else: ?>
+                        <div class="text-center text-muted p-5">
+                            <i class="fas fa-history fa-4x mb-3 opacity-25"></i>
+                            <h5 class="text-muted">No hay movimientos para este proveedor</h5>
+                            <p class="mb-0">Los movimientos aparecerán cuando se registren compras o pagos</p>
                         </div>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <div class="card bg-warning text-dark">
-                            <div class="card-body text-center p-3">
-                                <h6>Saldo Actual</h6>
-                                <h4><?php echo formatearMoneda($resumen['saldo_actual'] ?? 0); ?></h4>
-                            </div>
-                        </div>
-                    </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -471,37 +623,33 @@ if ($proveedor_id) {
     <?php endif; ?>
 </div>
 
-<!-- Resumen general por ciudad -->
+<!-- Resumen general por ciudad (solo cuando no hay proveedor seleccionado) -->
 <?php if (!$proveedor_id): ?>
 <div class="row mt-4">
     <div class="col-md-12">
-        <div class="card">
-            <div class="card-header bg-light">
+        <div class="card shadow">
+            <div class="card-header bg-gradient-info text-white">
                 <h5 class="mb-0">
-                    <i class="fas fa-map-marker-alt me-2"></i>
-                    Resumen por Ciudad
+                    <i class="fas fa-map-marked-alt me-2"></i>
+                    Resumen de Deudas por Ciudad
                 </h5>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
-                    <table class="table table-sm table-hover">
-                        <thead>
+                    <table class="table table-hover">
+                        <thead class="table-light">
                             <tr>
                                 <th>Ciudad</th>
                                 <th class="text-center">Proveedores</th>
-                                <th class="text-end">Total Límite</th>
                                 <th class="text-end">Total Deuda</th>
-                                <th class="text-end">Disponible</th>
-                                <th class="text-center">% Uso</th>
+                                <th class="text-center">% del Total</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php
                             $query_ciudades = "SELECT ciudad,
                                              COUNT(*) as total_proveedores,
-                                             SUM(credito_limite) as total_limite,
-                                             SUM(saldo_actual) as total_deuda,
-                                             SUM(credito_limite - saldo_actual) as disponible
+                                             SUM(saldo_actual) as total_deuda
                                              FROM proveedores 
                                              WHERE saldo_actual > 0 AND activo = 1
                                              GROUP BY ciudad
@@ -509,35 +657,35 @@ if ($proveedor_id) {
                             $result_ciudades = $conn->query($query_ciudades);
                             
                             if ($result_ciudades && $result_ciudades->num_rows > 0):
-                                $ciudad_total_proveedores = 0;
-                                $ciudad_total_limite = 0;
-                                $ciudad_total_deuda = 0;
-                                $ciudad_total_disponible = 0;
+                                $total_general_deuda = 0;
+                                $total_general_proveedores = 0;
                                 
                                 while ($ciudad = $result_ciudades->fetch_assoc()):
-                                    $porcentaje = $ciudad['total_limite'] > 0 ? 
-                                        ($ciudad['total_deuda'] / $ciudad['total_limite']) * 100 : 0;
-                                    
-                                    $ciudad_total_proveedores += $ciudad['total_proveedores'];
-                                    $ciudad_total_limite += $ciudad['total_limite'];
-                                    $ciudad_total_deuda += $ciudad['total_deuda'];
-                                    $ciudad_total_disponible += $ciudad['disponible'];
+                                    $total_general_deuda += $ciudad['total_deuda'];
+                                    $total_general_proveedores += $ciudad['total_proveedores'];
                             ?>
                             <tr>
-                                <td><strong><?php echo htmlspecialchars($ciudad['ciudad']); ?></strong></td>
-                                <td class="text-center"><?php echo $ciudad['total_proveedores']; ?></td>
-                                <td class="text-end"><?php echo formatearMoneda($ciudad['total_limite']); ?></td>
-                                <td class="text-end">
-                                    <span class="text-danger"><?php echo formatearMoneda($ciudad['total_deuda']); ?></span>
-                                </td>
-                                <td class="text-end">
-                                    <span class="text-success"><?php echo formatearMoneda($ciudad['disponible']); ?></span>
+                                <td>
+                                    <span class="fw-bold"><?php echo htmlspecialchars($ciudad['ciudad'] ?: 'Sin ciudad'); ?></span>
                                 </td>
                                 <td class="text-center">
+                                    <span class="badge bg-info rounded-pill px-3">
+                                        <?php echo $ciudad['total_proveedores']; ?>
+                                    </span>
+                                </td>
+                                <td class="text-end">
+                                    <span class="fw-bold text-danger">
+                                        <?php echo formatearMoneda($ciudad['total_deuda']); ?>
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    <?php 
+                                    $porcentaje = $total_general_deuda > 0 ? ($ciudad['total_deuda'] / $total_general_deuda) * 100 : 0;
+                                    ?>
                                     <div class="d-flex align-items-center">
-                                        <div class="progress flex-grow-1 me-2" style="height: 20px;">
-                                            <div class="progress-bar bg-<?php echo $porcentaje > 80 ? 'danger' : ($porcentaje > 50 ? 'warning' : 'success'); ?>" 
-                                                 style="width: <?php echo min($porcentaje, 100); ?>%">
+                                        <div class="progress flex-grow-1 me-2" style="height: 10px;">
+                                            <div class="progress-bar bg-info" 
+                                                 style="width: <?php echo $porcentaje; ?>%">
                                             </div>
                                         </div>
                                         <span class="text-muted"><?php echo number_format($porcentaje, 1); ?>%</span>
@@ -545,29 +693,16 @@ if ($proveedor_id) {
                                 </td>
                             </tr>
                             <?php endwhile; ?>
-                            <!-- Totales por ciudad -->
-                            <tr class="table-active">
-                                <td><strong>TOTAL GENERAL:</strong></td>
-                                <td class="text-center"><strong><?php echo $ciudad_total_proveedores; ?></strong></td>
-                                <td class="text-end"><strong><?php echo formatearMoneda($ciudad_total_limite); ?></strong></td>
-                                <td class="text-end">
-                                    <strong class="text-danger"><?php echo formatearMoneda($ciudad_total_deuda); ?></strong>
-                                </td>
-                                <td class="text-end">
-                                    <strong class="text-success"><?php echo formatearMoneda($ciudad_total_disponible); ?></strong>
-                                </td>
-                                <td class="text-center">
-                                    <?php 
-                                    $porcentaje_total = $ciudad_total_limite > 0 ? ($ciudad_total_deuda / $ciudad_total_limite) * 100 : 0;
-                                    ?>
-                                    <strong class="text-<?php echo $porcentaje_total > 80 ? 'danger' : ($porcentaje_total > 50 ? 'warning' : 'success'); ?>">
-                                        <?php echo number_format($porcentaje_total, 1); ?>%
-                                    </strong>
-                                </td>
+                            <!-- Totales -->
+                            <tr class="table-active fw-bold">
+                                <td>TOTAL GENERAL:</td>
+                                <td class="text-center"><?php echo $total_general_proveedores; ?></td>
+                                <td class="text-end text-danger fs-5"><?php echo formatearMoneda($total_general_deuda); ?></td>
+                                <td class="text-center">100%</td>
                             </tr>
                             <?php else: ?>
                             <tr>
-                                <td colspan="6" class="text-center text-muted p-4">
+                                <td colspan="4" class="text-center text-muted p-4">
                                     No hay datos de proveedores por ciudad
                                 </td>
                             </tr>
@@ -582,58 +717,7 @@ if ($proveedor_id) {
 <?php endif; ?>
 
 <script>
-// Buscar en la tabla
-function buscarProveedoresPagar() {
-    var input = document.getElementById('buscarProveedorPagar');
-    var filter = input.value.toUpperCase();
-    var table = document.getElementById('tablaProveedoresPagar');
-    var tr = table.getElementsByTagName('tr');
-    var visibleCount = 0;
-    
-    for (var i = 1; i < tr.length; i++) {
-        var mostrar = false;
-        var tds = tr[i].getElementsByTagName('td');
-        
-        for (var j = 0; j < tds.length; j++) {
-            if (tds[j]) {
-                var txtValue = tds[j].textContent || tds[j].innerText;
-                if (txtValue.toUpperCase().indexOf(filter) > -1) {
-                    mostrar = true;
-                    break;
-                }
-            }
-        }
-        
-        if (mostrar) {
-            tr[i].style.display = '';
-            visibleCount++;
-        } else {
-            tr[i].style.display = 'none';
-        }
-    }
-    
-    // Actualizar contador
-    var counterBadge = document.querySelector('.card-header .badge.bg-danger');
-    if (counterBadge) {
-        counterBadge.textContent = visibleCount + ' proveedores';
-    }
-}
-
-// Configurar buscador
-document.getElementById('buscarProveedorPagar').addEventListener('keyup', buscarProveedoresPagar);
-
-// Limpiar búsqueda
-function limpiarBusqueda() {
-    document.getElementById('buscarProveedorPagar').value = '';
-    buscarProveedoresPagar();
-}
-
-// Imprimir extracto del proveedor
-function imprimirExtracto(proveedorId) {
-    window.open('generar_extracto_proveedor.php?id=' + proveedorId, '_blank');
-}
-
-// Exportar reporte a Excel
+// Función para exportar reporte a Excel
 function exportarReportePagar() {
     var html = '<!DOCTYPE html><html><head><meta charset="UTF-8">';
     html += '<title>Reporte de Cuentas por Pagar</title>';
@@ -646,7 +730,6 @@ function exportarReportePagar() {
     html += '.text-end { text-align: right; }';
     html += '.text-center { text-align: center; }';
     html += '.text-danger { color: #dc3545; }';
-    html += '.text-success { color: #28a745; }';
     html += '.table-active { background-color: #e9ecef; font-weight: bold; }';
     html += '</style>';
     html += '</head><body>';
@@ -661,8 +744,10 @@ function exportarReportePagar() {
     var rows = table.getElementsByTagName('tr');
     for (var i = 0; i < rows.length; i++) {
         var cells = rows[i].getElementsByTagName('td');
-        if (cells.length > 6) {
-            cells[6].innerHTML = ''; // Limpiar columna de acciones
+        if (cells.length > 4) {
+            if (cells[4]) {
+                cells[4].innerHTML = ''; // Limpiar columna de acciones
+            }
         }
     }
     
@@ -684,68 +769,10 @@ function exportarReportePagar() {
 // Inicializar tooltips
 document.addEventListener('DOMContentLoaded', function() {
     var tooltipTriggerList = [].slice.call(document.querySelectorAll('[title]'));
-    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
         return new bootstrap.Tooltip(tooltipTriggerEl);
     });
 });
 </script>
-
-<style>
-/* Estilos personalizados */
-.avatar-circle {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-    font-size: 14px;
-}
-
-.table-hover tbody tr:hover {
-    background-color: rgba(0, 0, 0, 0.025);
-}
-
-.table-danger {
-    background-color: rgba(220, 53, 69, 0.05) !important;
-}
-
-.table-warning {
-    background-color: rgba(255, 193, 7, 0.05) !important;
-}
-
-.progress {
-    background-color: #e9ecef;
-    border-radius: 3px;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-    .btn-group-sm {
-        display: flex;
-        flex-direction: column;
-    }
-    
-    .btn-group-sm .btn {
-        margin-bottom: 2px;
-        border-radius: 4px !important;
-    }
-    
-    .table-responsive {
-        font-size: 13px;
-    }
-    
-    .avatar-circle {
-        width: 28px;
-        height: 28px;
-        font-size: 12px;
-    }
-    
-    .card-body.p-3 {
-        padding: 1rem !important;
-    }
-}
-</style>
 
 <?php require_once 'footer.php'; ?>
