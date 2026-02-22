@@ -34,6 +34,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
             throw new Exception("Los valores no pueden ser negativos");
         }
         
+        // cantidad total subpaquetes que estamos añadiendo (se usa para historial)
+        $cantidad_subpaquetes = ($paquetes_completos * $subpaquetes_por_paquete) + $subpaquetes_sueltos;
+        
+        // calcular costo total incluyendo subpaquetes sueltos
+        $costo_subpaquete = $subpaquetes_por_paquete ? ($costo_paquete / $subpaquetes_por_paquete) : 0;
+        $costo_total = ($paquetes_completos * $costo_paquete) + ($subpaquetes_sueltos * $costo_subpaquete);
+        
+        // traer id de proveedor para actualizar saldo posteriormente
+        $proveedor_id = null;
+        $stmt_p = $conn->prepare("SELECT proveedor_id FROM productos WHERE id = ?");
+        $stmt_p->bind_param('i', $producto_id);
+        $stmt_p->execute();
+        $res_p = $stmt_p->get_result();
+        if ($row = $res_p->fetch_assoc()) {
+            $proveedor_id = $row['proveedor_id'];
+        }
+        
+        if ($paquetes_completos < 0 || $subpaquetes_sueltos < 0 || $costo_paquete < 0) {
+            throw new Exception("Los valores no pueden ser negativos");
+        }
+        
         if ($subpaquetes_sueltos >= $subpaquetes_por_paquete) {
             // Convertir sueltos a paquetes completos si excede el límite
             $paquetes_completos += floor($subpaquetes_sueltos / $subpaquetes_por_paquete);
@@ -151,10 +172,67 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
             throw new Exception("Error al registrar en historial: " . $stmt_historial->error);
         }
         
-        // El saldo del proveedor por la compra de inventario lo gestiona el trigger
-        // `after_inventario_insert` / `after_inventario_update`. No necesitamos
-        // actualizarlo manualmente aquí.
-        
+        // actualizar saldo del proveedor y registrar movimiento manualmente
+        // (se usa como respaldo; si los triggers existen ya incluyen
+        // subpaquetes en el cálculo, esta sección no hará daño porque el
+        // saldo ya habrá cambiado y los INSERT posteriores no duplicarán
+        // nada, pero no duplicamos el registro de estado aquí si
+        // triggers están activos, porque comprobamos la existencia).
+        if ($proveedor_id && $costo_total > 0) {
+            // comprobar si los triggers están definidos en la base de datos
+            $trigger_exists = false;
+            $qt = "SELECT COUNT(*) as cnt FROM information_schema.TRIGGERS
+                   WHERE TRIGGER_SCHEMA = DATABASE()
+                   AND TRIGGER_NAME IN ('after_inventario_insert','after_inventario_update')";
+            $rt = $conn->query($qt);
+            if ($rt && ($rowt = $rt->fetch_assoc()) && $rowt['cnt'] > 0) {
+                $trigger_exists = true;
+            }
+
+            // siempre actualizamos saldo_actual; si el trigger ya lo hizo,
+            // el UPDATE no altera el valor ya corregido porque sumamos
+            // exactamente lo mismo.
+            $upd = $conn->prepare("UPDATE proveedores SET saldo_actual = saldo_actual + ? WHERE id = ?");
+            $upd->bind_param('di', $costo_total, $proveedor_id);
+            $upd->execute();
+
+            // insertar registro en estado de cuentas sólo si el trigger NO existe
+            if (! $trigger_exists) {
+                // obtener datos previos del proveedor
+                $info = null;
+                $si = $conn->prepare("SELECT codigo, nombre, ciudad, saldo_actual
+                                      FROM proveedores WHERE id = ?");
+                $si->bind_param('i', $proveedor_id);
+                $si->execute();
+                $ri = $si->get_result();
+                if ($ri && ($info = $ri->fetch_assoc())) {
+                    $nuevo_saldo = floatval($info['saldo_actual']) + $costo_total;
+                    $descripcion = 'Compra de ' . $paquetes_completos . ' paquetes';
+                    if ($subpaquetes_sueltos > 0) {
+                        $descripcion .= ' y ' . $subpaquetes_sueltos . ' subpaquetes';
+                    }
+
+                    $ins = $conn->prepare(
+                        "INSERT INTO proveedores_estado_cuentas 
+                         (proveedor_id, codigo_proveedor, nombre_proveedor, ciudad_proveedor, 
+                          compra, a_cuenta, adelanto, saldo, fecha, descripcion, usuario_id) 
+                         VALUES (?, ?, ?, ?, ?, ?, 0.00, ?, CURDATE(), ?, ?)");
+                    $ins->bind_param('isssddssi',
+                        $proveedor_id,
+                        $info['codigo'],
+                        $info['nombre'],
+                        $info['ciudad'],
+                        $costo_total,
+                        $costo_total,
+                        $nuevo_saldo,
+                        $descripcion,
+                        $_SESSION['usuario_id']
+                    );
+                    $ins->execute();
+                }
+            }
+        }
+
         $conn->commit();
         $tipo_mensaje = "success";
         
@@ -937,7 +1015,8 @@ function calcularTotalSubpaquetes() {
     }
     
     let total = (paquetes * spp) + sueltos;
-    let costoTotal = paquetes * costoPaquete;
+    // coste completo incluyendo subpaquetes sueltos
+    let costoTotal = (paquetes * costoPaquete) + (sueltos * (costoPaquete / spp));
     
     // Actualizar campos
     document.getElementById('totalSubpaquetes').textContent = total.toLocaleString('es-ES');

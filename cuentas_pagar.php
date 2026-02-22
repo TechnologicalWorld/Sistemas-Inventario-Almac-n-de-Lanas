@@ -76,6 +76,20 @@ if ($proveedor_id) {
     if ($result_proveedor->num_rows > 0) {
         $proveedor_info = $result_proveedor->fetch_assoc();
         
+        // Si por alguna razón el saldo_actual en la tabla proveedores está en 0
+        // recalculamos a partir de los movimientos registrados (fallback).
+        if (floatval($proveedor_info['saldo_actual']) == 0) {
+            $query_calc = "SELECT COALESCE(SUM(compra - a_cuenta - adelanto),0) as saldo 
+                           FROM proveedores_estado_cuentas WHERE proveedor_id = ?";
+            $stmt_calc = $conn->prepare($query_calc);
+            $stmt_calc->bind_param("i", $proveedor_id);
+            $stmt_calc->execute();
+            $res_calc = $stmt_calc->get_result();
+            if ($row_calc = $res_calc->fetch_assoc()) {
+                $proveedor_info['saldo_actual'] = $row_calc['saldo'];
+            }
+        }
+        
         // Obtener historial del proveedor
         $query_historial = "SELECT pec.*, u.nombre as usuario_nombre 
                            FROM proveedores_estado_cuentas pec

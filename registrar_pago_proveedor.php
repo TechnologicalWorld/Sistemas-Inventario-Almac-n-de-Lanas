@@ -57,6 +57,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $proveedor = $result_proveedor->fetch_assoc();
         $saldo_actual = floatval($proveedor['saldo_actual']);
         
+        // si la tabla proveedores tiene cero (posible inconsistencia) recomputamos
+        if ($saldo_actual == 0) {
+            $query_calc = "SELECT COALESCE(SUM(compra - a_cuenta - adelanto),0) as saldo 
+                           FROM proveedores_estado_cuentas WHERE proveedor_id = ?";
+            $stmt_calc = $conn->prepare($query_calc);
+            $stmt_calc->bind_param("i", $proveedor_id);
+            $stmt_calc->execute();
+            $res_calc = $stmt_calc->get_result();
+            if ($row_calc = $res_calc->fetch_assoc()) {
+                $saldo_actual = floatval($row_calc['saldo']);
+            }
+        }
+        
         // Validar que el monto no exceda el saldo
         if ($monto > $saldo_actual) {
             throw new Exception("El monto no puede ser mayor al saldo actual del proveedor (Bs. " . number_format($saldo_actual, 2) . ")");

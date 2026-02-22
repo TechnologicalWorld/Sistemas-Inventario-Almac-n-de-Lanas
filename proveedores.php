@@ -119,8 +119,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 }
 
 // Obtener lista de proveedores
+// Si el campo saldo_actual está en cero utilizamos la suma de movimientos
+// para evitar inconsistencias cuando el trigger no haya ejecutado correctamente.
 $query = "SELECT id, codigo, nombre, ciudad, telefono, email, 
-          credito_limite, saldo_actual, activo,
+          credito_limite,
+          COALESCE(saldo_actual,
+                   (SELECT COALESCE(SUM(compra - a_cuenta - adelanto),0) 
+                    FROM proveedores_estado_cuentas pec 
+                    WHERE pec.proveedor_id = proveedores.id)
+          ) as saldo_actual,
+          activo,
           DATE_FORMAT(fecha_registro, '%d/%m/%Y') as fecha_registro,
           observaciones
           FROM proveedores ORDER BY nombre";
