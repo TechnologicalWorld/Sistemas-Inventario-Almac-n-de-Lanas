@@ -21,116 +21,123 @@ if ($_SESSION['usuario_rol'] == 'vendedor') {
 $mensaje = '';
 $tipo_mensaje = '';
 
-// Procesar acciones (solo administrador)
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$solo_lectura) {
+// Procesar acciones (solo administrador para crear/editar, pero permitir ajuste de stock para vendedores)
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $action = $_POST['action'] ?? '';
     
+    // Verificar permisos para cada acción
     switch ($action) {
         case 'crear':
-            $codigo = limpiar($_POST['codigo']);
-            $nombre = limpiar($_POST['nombre']);
-            $categoria = limpiar($_POST['categoria']);
-            $unidad = limpiar($_POST['unidad']);
-            $precio_compra = floatval($_POST['precio_compra'] ?? 0);
-            $precio_venta = floatval($_POST['precio_venta']);
-            $stock = intval($_POST['stock'] ?? 0);
-            $stock_minimo = intval($_POST['stock_minimo'] ?? 5);
-            $observaciones = limpiar($_POST['observaciones']);
-            
-            // Validar código único
-            $check_query = "SELECT id FROM otros_productos WHERE codigo = ?";
-            $check_stmt = $conn->prepare($check_query);
-            $check_stmt->bind_param("s", $codigo);
-            $check_stmt->execute();
-            $check_result = $check_stmt->get_result();
-            
-            if ($check_result->num_rows > 0) {
-                $mensaje = "Ya existe un producto con el código '$codigo'";
-                $tipo_mensaje = "danger";
-                break;
-            }
-            
-            $query = "INSERT INTO otros_productos 
-                     (codigo, nombre, categoria, unidad, precio_compra, precio_venta, 
-                      stock, stock_minimo, observaciones, activo) 
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)";
-            $stmt = $conn->prepare($query);
-            $stmt->bind_param("ssssddiis", $codigo, $nombre, $categoria, $unidad, 
-                             $precio_compra, $precio_venta, $stock, $stock_minimo, $observaciones);
-            
-            if ($stmt->execute()) {
-                $mensaje = "Producto creado exitosamente";
-                $tipo_mensaje = "success";
-            } else {
-                $mensaje = "Error al crear producto: " . $stmt->error;
-                $tipo_mensaje = "danger";
-            }
-            break;
-            
         case 'editar':
-            $id = intval($_POST['id']);
-            $codigo = limpiar($_POST['codigo']);
-            $nombre = limpiar($_POST['nombre']);
-            $categoria = limpiar($_POST['categoria']);
-            $unidad = limpiar($_POST['unidad']);
-            $precio_compra = floatval($_POST['precio_compra'] ?? 0);
-            $precio_venta = floatval($_POST['precio_venta']);
-            $stock = intval($_POST['stock']);
-            $stock_minimo = intval($_POST['stock_minimo']);
-            $activo = isset($_POST['activo']) ? 1 : 0;
-            $observaciones = limpiar($_POST['observaciones']);
-            
-            // Validar código único excepto para el mismo producto
-            $check_query = "SELECT id FROM otros_productos WHERE codigo = ? AND id != ?";
-            $check_stmt = $conn->prepare($check_query);
-            $check_stmt->bind_param("si", $codigo, $id);
-            $check_stmt->execute();
-            $check_result = $check_stmt->get_result();
-            
-            if ($check_result->num_rows > 0) {
-                $mensaje = "Ya existe otro producto con el código '$codigo'";
+        case 'cambiar_estado':
+            if ($solo_lectura) {
+                $mensaje = "No tiene permisos para realizar esta acción";
                 $tipo_mensaje = "danger";
                 break;
             }
-            
-            $query = "UPDATE otros_productos SET 
-                     codigo = ?, nombre = ?, categoria = ?, unidad = ?, 
-                     precio_compra = ?, precio_venta = ?, stock = ?, 
-                     stock_minimo = ?, activo = ?, observaciones = ?
-                     WHERE id = ?";
-            $stmt = $conn->prepare($query);
-            $stmt->bind_param("ssssddiiisi", $codigo, $nombre, $categoria, $unidad,
-                             $precio_compra, $precio_venta, $stock, $stock_minimo,
-                             $activo, $observaciones, $id);
-            
-            if ($stmt->execute()) {
-                $mensaje = "Producto actualizado exitosamente";
-                $tipo_mensaje = "success";
-            } else {
-                $mensaje = "Error al actualizar producto: " . $stmt->error;
-                $tipo_mensaje = "danger";
-            }
-            break;
-            
-        case 'cambiar_estado':
-            $id = intval($_POST['id']);
-            $activo = intval($_POST['activo']);
-            
-            // SOLO actualizar el campo activo, mantener todo lo demás igual
-            $query = "UPDATE otros_productos SET activo = ? WHERE id = ?";
-            $stmt = $conn->prepare($query);
-            $stmt->bind_param("ii", $activo, $id);
-            
-            if ($stmt->execute()) {
-                $mensaje = "Estado del producto actualizado exitosamente";
-                $tipo_mensaje = "success";
-            } else {
-                $mensaje = "Error al cambiar estado: " . $stmt->error;
-                $tipo_mensaje = "danger";
+            // Procesar acciones de admin
+            if ($action == 'crear') {
+                $codigo = limpiar($_POST['codigo']);
+                $nombre = limpiar($_POST['nombre']);
+                $categoria = limpiar($_POST['categoria']);
+                $unidad = limpiar($_POST['unidad']);
+                $precio_compra = floatval($_POST['precio_compra'] ?? 0);
+                $precio_venta = floatval($_POST['precio_venta']);
+                $stock = intval($_POST['stock'] ?? 0);
+                $stock_minimo = intval($_POST['stock_minimo'] ?? 5);
+                $observaciones = limpiar($_POST['observaciones']);
+                
+                // Validar código único
+                $check_query = "SELECT id FROM otros_productos WHERE codigo = ?";
+                $check_stmt = $conn->prepare($check_query);
+                $check_stmt->bind_param("s", $codigo);
+                $check_stmt->execute();
+                $check_result = $check_stmt->get_result();
+                
+                if ($check_result->num_rows > 0) {
+                    $mensaje = "Ya existe un producto con el código '$codigo'";
+                    $tipo_mensaje = "danger";
+                    break;
+                }
+                
+                $query = "INSERT INTO otros_productos 
+                         (codigo, nombre, categoria, unidad, precio_compra, precio_venta, 
+                          stock, stock_minimo, observaciones, activo) 
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)";
+                $stmt = $conn->prepare($query);
+                $stmt->bind_param("ssssddiis", $codigo, $nombre, $categoria, $unidad, 
+                                 $precio_compra, $precio_venta, $stock, $stock_minimo, $observaciones);
+                
+                if ($stmt->execute()) {
+                    $mensaje = "Producto creado exitosamente";
+                    $tipo_mensaje = "success";
+                } else {
+                    $mensaje = "Error al crear producto: " . $stmt->error;
+                    $tipo_mensaje = "danger";
+                }
+            } elseif ($action == 'editar') {
+                $id = intval($_POST['id']);
+                $codigo = limpiar($_POST['codigo']);
+                $nombre = limpiar($_POST['nombre']);
+                $categoria = limpiar($_POST['categoria']);
+                $unidad = limpiar($_POST['unidad']);
+                $precio_compra = floatval($_POST['precio_compra'] ?? 0);
+                $precio_venta = floatval($_POST['precio_venta']);
+                $stock = intval($_POST['stock']);
+                $stock_minimo = intval($_POST['stock_minimo']);
+                $activo = isset($_POST['activo']) ? 1 : 0;
+                $observaciones = limpiar($_POST['observaciones']);
+                
+                // Validar código único excepto para el mismo producto
+                $check_query = "SELECT id FROM otros_productos WHERE codigo = ? AND id != ?";
+                $check_stmt = $conn->prepare($check_query);
+                $check_stmt->bind_param("si", $codigo, $id);
+                $check_stmt->execute();
+                $check_result = $check_stmt->get_result();
+                
+                if ($check_result->num_rows > 0) {
+                    $mensaje = "Ya existe otro producto con el código '$codigo'";
+                    $tipo_mensaje = "danger";
+                    break;
+                }
+                
+                $query = "UPDATE otros_productos SET 
+                         codigo = ?, nombre = ?, categoria = ?, unidad = ?, 
+                         precio_compra = ?, precio_venta = ?, stock = ?, 
+                         stock_minimo = ?, activo = ?, observaciones = ?
+                         WHERE id = ?";
+                $stmt = $conn->prepare($query);
+                $stmt->bind_param("ssssddiiisi", $codigo, $nombre, $categoria, $unidad,
+                                 $precio_compra, $precio_venta, $stock, $stock_minimo,
+                                 $activo, $observaciones, $id);
+                
+                if ($stmt->execute()) {
+                    $mensaje = "Producto actualizado exitosamente";
+                    $tipo_mensaje = "success";
+                } else {
+                    $mensaje = "Error al actualizar producto: " . $stmt->error;
+                    $tipo_mensaje = "danger";
+                }
+            } elseif ($action == 'cambiar_estado') {
+                $id = intval($_POST['id']);
+                $activo = intval($_POST['activo']);
+                
+                $query = "UPDATE otros_productos SET activo = ? WHERE id = ?";
+                $stmt = $conn->prepare($query);
+                $stmt->bind_param("ii", $activo, $id);
+                
+                if ($stmt->execute()) {
+                    $mensaje = "Estado del producto actualizado exitosamente";
+                    $tipo_mensaje = "success";
+                } else {
+                    $mensaje = "Error al cambiar estado: " . $stmt->error;
+                    $tipo_mensaje = "danger";
+                }
             }
             break;
             
         case 'ajustar_stock':
+            // Permitir ajuste de stock para todos los roles
             $id = intval($_POST['id']);
             $tipo_ajuste = $_POST['tipo_ajuste'];
             $cantidad = intval($_POST['cantidad']);
@@ -264,6 +271,7 @@ $sin_stock = $result_sin_stock->fetch_assoc()['total'] ?? 0;
         </div>
     </div>
 </div>
+
 <div class="row mb-4">
     <div class="col-md-12">
         <div class="card shadow">
@@ -403,6 +411,9 @@ $sin_stock = $result_sin_stock->fetch_assoc()['total'] ?? 0;
                                                     title="Editar producto">
                                                 <i class="fas fa-edit"></i>
                                             </button>
+                                            <?php endif; ?>
+                                            
+                                            <!-- Botón de ajustar stock disponible para todos -->
                                             <button class="btn btn-outline-info"
                                                     data-bs-toggle="modal"
                                                     data-bs-target="#modalAjustarStock"
@@ -410,16 +421,12 @@ $sin_stock = $result_sin_stock->fetch_assoc()['total'] ?? 0;
                                                     title="Ajustar stock">
                                                 <i class="fas fa-exchange-alt"></i>
                                             </button>
+                                            
+                                            <?php if (!$solo_lectura): ?>
                                             <button class="btn btn-outline-<?php echo $producto['activo'] ? 'danger' : 'success'; ?>"
                                                     onclick="cambiarEstadoProducto(<?php echo $producto['id']; ?>, <?php echo $producto['activo']; ?>, '<?php echo htmlspecialchars(addslashes($producto['nombre'])); ?>')"
                                                     title="<?php echo $producto['activo'] ? 'Desactivar' : 'Activar'; ?> producto">
                                                 <i class="fas fa-<?php echo $producto['activo'] ? 'ban' : 'check-circle'; ?>"></i>
-                                            </button>
-                                            <?php else: ?>
-                                            <button class="btn btn-outline-success"
-                                                    onclick="seleccionarParaVenta(<?php echo htmlspecialchars(json_encode($producto)); ?>)"
-                                                    title="Seleccionar para venta">
-                                                <i class="fas fa-cart-plus"></i>
                                             </button>
                                             <?php endif; ?>
                                         </div>
@@ -446,8 +453,6 @@ $sin_stock = $result_sin_stock->fetch_assoc()['total'] ?? 0;
         </div>
     </div>
 </div>
-
-
 
 <!-- Modal Nuevo Producto (solo admin) -->
 <?php if (!$solo_lectura): ?>
@@ -661,8 +666,9 @@ $sin_stock = $result_sin_stock->fetch_assoc()['total'] ?? 0;
         </div>
     </div>
 </div>
+<?php endif; ?>
 
-<!-- Modal Ajustar Stock -->
+<!-- Modal Ajustar Stock (SIEMPRE visible para todos los roles) -->
 <div class="modal fade" id="modalAjustarStock" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -719,7 +725,6 @@ $sin_stock = $result_sin_stock->fetch_assoc()['total'] ?? 0;
         </div>
     </div>
 </div>
-<?php endif; ?>
 
 <script>
 // Función para mostrar loading
@@ -755,11 +760,15 @@ function ocultarLoading() {
     if (loading) loading.remove();
 }
 
-// Función CORREGIDA para cambiar estado - AHORA SOLO actualiza activo
+// Función para cambiar estado
 function cambiarEstadoProducto(id, estadoActual, nombre) {
+    <?php if ($solo_lectura): ?>
+    alert('No tiene permisos para realizar esta acción');
+    return;
+    <?php endif; ?>
+    
     const nuevoEstado = estadoActual == 1 ? 0 : 1;
     const accion = nuevoEstado == 1 ? 'ACTIVAR' : 'DESACTIVAR';
-    const icono = nuevoEstado == 1 ? 'check-circle' : 'ban';
     
     if (confirm(` ¿Está seguro de ${accion} el producto?\n\n"${nombre}"\n\nEsta acción cambiará su disponibilidad en ventas.`)) {
         mostrarLoading('Cambiando estado...');
@@ -788,6 +797,11 @@ function cambiarEstadoProducto(id, estadoActual, nombre) {
 
 // Función para cargar datos en el modal de edición
 function cargarDatosProducto(producto) {
+    <?php if ($solo_lectura): ?>
+    alert('No tiene permisos para editar productos');
+    return;
+    <?php endif; ?>
+    
     document.getElementById('editProductoId').value = producto.id;
     document.getElementById('editCodigo').value = producto.codigo || '';
     document.getElementById('editNombre').value = producto.nombre || '';
@@ -807,18 +821,6 @@ function cargarProductoAjuste(id, nombre) {
     document.getElementById('ajusteProductoNombre').value = nombre;
     document.getElementById('ajusteCantidad').value = 1;
     document.getElementById('tipoAjuste').value = 'incrementar';
-}
-
-// Función para seleccionar producto para venta
-function seleccionarParaVenta(producto) {
-    try {
-        sessionStorage.setItem('productoSeleccionado', JSON.stringify(producto));
-        alert('Producto "' + producto.nombre + '" seleccionado para venta');
-        window.location.href = 'ventas.php';
-    } catch (e) {
-        console.error('Error:', e);
-        alert('Error al seleccionar el producto');
-    }
 }
 
 // Función de búsqueda mejorada
@@ -891,7 +893,7 @@ function filtrarProductos() {
 (function() {
     'use strict';
     
-    // Validar formulario nuevo producto
+    // Validar formulario nuevo producto (solo si existe)
     const formNuevo = document.getElementById('formNuevoProducto');
     if (formNuevo) {
         formNuevo.addEventListener('submit', function(event) {
@@ -903,7 +905,7 @@ function filtrarProductos() {
         }, false);
     }
     
-    // Validar formulario editar producto
+    // Validar formulario editar producto (solo si existe)
     const formEditar = document.getElementById('formEditarProducto');
     if (formEditar) {
         formEditar.addEventListener('submit', function(event) {
@@ -915,7 +917,7 @@ function filtrarProductos() {
         }, false);
     }
     
-    // Validar formulario ajustar stock
+    // Validar formulario ajustar stock (siempre existe)
     const formAjuste = document.getElementById('formAjustarStock');
     if (formAjuste) {
         formAjuste.addEventListener('submit', function(event) {
