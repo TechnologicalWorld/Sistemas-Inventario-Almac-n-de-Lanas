@@ -150,10 +150,103 @@ $formato = $_GET['formato'] ?? 'html';
                         <button class="btn btn-outline-primary" onclick="window.print()">
                             <i class="fas fa-print me-2"></i>Imprimir
                         </button>
-
                     </div>
                 </div>
                 
+                <!-- Filtros avanzados -->
+                <form method="GET" action="" id="filtrosReporte" class="row g-3 mt-2">
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold small">TIPO DE REPORTE</label>
+                        <select class="form-select form-select-sm" name="tipo_reporte" id="tipoReporte">
+                            <optgroup label=" VENTAS">
+                                <option value="dashboard" <?php echo $tipo_reporte == 'dashboard' ? 'selected' : ''; ?>>Dashboard General</option>
+                                <option value="ventas_periodo" <?php echo $tipo_reporte == 'ventas_periodo' ? 'selected' : ''; ?>>Ventas por Período</option>
+                                <option value="comparativo" <?php echo $tipo_reporte == 'comparativo' ? 'selected' : ''; ?>>Comparativo Períodos</option>
+                            </optgroup>
+                            <optgroup label=" INVENTARIO">
+                                <option value="stock_bajo" <?php echo $tipo_reporte == 'stock_bajo' ? 'selected' : ''; ?>>Productos con Stock Bajo</option>
+
+                            </optgroup>
+                            <optgroup label="FINANZAS">
+                                <option value="caja" <?php echo $tipo_reporte == 'caja' ? 'selected' : ''; ?>>Movimientos de Caja</option>
+                                <option value="balance" <?php echo $tipo_reporte == 'balance' ? 'selected' : ''; ?>>Balance General</option>
+                            </optgroup>
+                            <optgroup label=" CLIENTES">
+                                <option value="clientes_morosos" <?php echo $tipo_reporte == 'clientes_morosos' ? 'selected' : ''; ?>>Clientes con Deuda</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-2">
+                        <label class="form-label fw-bold small">FECHA INICIO</label>
+                        <input type="date" class="form-control form-control-sm" name="fecha_inicio" 
+                               value="<?php echo $fecha_inicio; ?>" max="<?php echo date('Y-m-d'); ?>">
+                    </div>
+                    
+                    <div class="col-md-2">
+                        <label class="form-label fw-bold small">FECHA FIN</label>
+                        <input type="date" class="form-control form-control-sm" name="fecha_fin" 
+                               value="<?php echo $fecha_fin; ?>" max="<?php echo date('Y-m-d'); ?>">
+                    </div>
+                    
+                    <!-- Filtros dinámicos según tipo de reporte -->
+                    <div class="col-md-3" id="filtroVendedor" style="display: none;">
+                        <label class="form-label fw-bold small">VENDEDOR</label>
+                        <select class="form-select form-select-sm" name="vendedor_id">
+                            <option value="">Todos los vendedores</option>
+                            <?php
+                            $vendedores = $conn->query("SELECT id, nombre FROM usuarios WHERE rol = 'vendedor' AND activo = 1 ORDER BY nombre");
+                            while ($v = $vendedores->fetch_assoc()):
+                            ?>
+                            <option value="<?php echo $v['id']; ?>" <?php echo $vendedor_id == $v['id'] ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($v['nombre']); ?>
+                            </option>
+                            <?php endwhile; ?>
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-3" id="filtroProveedor" style="display: none;">
+                        <label class="form-label fw-bold small">PROVEEDOR</label>
+                        <select class="form-select form-select-sm" name="proveedor_id">
+                            <option value="">Todos los proveedores</option>
+                            <?php
+                            $proveedores = $conn->query("SELECT id, nombre FROM proveedores WHERE activo = 1 ORDER BY nombre");
+                            while ($p = $proveedores->fetch_assoc()):
+                            ?>
+                            <option value="<?php echo $p['id']; ?>" <?php echo $proveedor_id == $p['id'] ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($p['nombre']); ?>
+                            </option>
+                            <?php endwhile; ?>
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-3" id="filtroCategoria" style="display: none;">
+                        <label class="form-label fw-bold small">CATEGORÍA</label>
+                        <select class="form-select form-select-sm" name="categoria_id">
+                            <option value="">Todas las categorías</option>
+                            <?php
+                            $categorias = $conn->query("SELECT id, nombre FROM categorias WHERE activo = 1 ORDER BY nombre");
+                            while ($c = $categorias->fetch_assoc()):
+                            ?>
+                            <option value="<?php echo $c['id']; ?>" <?php echo $categoria_id == $c['id'] ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($c['nombre']); ?>
+                            </option>
+                            <?php endwhile; ?>
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary btn-sm w-100">
+                            <i class="fas fa-sync-alt me-2"></i>GENERAR
+                        </button>
+                    </div>
+                    
+                    <div class="col-md-2 d-flex align-items-end">
+                        <a href="reportes.php" class="btn btn-outline-secondary btn-sm w-100">
+                            <i class="fas fa-undo me-2"></i>LIMPIAR
+                        </a>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -161,7 +254,7 @@ $formato = $_GET['formato'] ?? 'html';
 
 <?php
 // ============================================
-// GENERADOR DE REPORTES PROFESIONAL
+// GENERADOR DE REPORTES PROFESIONAL - ADAPTADO A TU BD
 // ============================================
 
 switch ($tipo_reporte) {
